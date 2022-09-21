@@ -1,13 +1,11 @@
 package cmd
 
 import (
-	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/tdahar/block-scorer/pkg/app"
 	cli "github.com/urfave/cli/v2"
 )
@@ -24,22 +22,20 @@ var ScorerCommand = &cli.Command{
 		}},
 }
 
-var logRewardsRewards = logrus.WithField(
-	"module", "ScorerCommand",
-)
-
 var QueryTimeout = 90 * time.Second
 
 // CrawlAction is the function that is called when running `eth2`.
 func LaunchBlockScorer(c *cli.Context) error {
-	logRewardsRewards.Info("parsing flags")
+	logLauncher := log.WithField(
+		"module", "ScorerCommand",
+	)
+	logLauncher.Info("parsing flags")
 	// check if a config file is set
 	if !c.IsSet("bn-endpoints") {
 		return errors.New("bn endpoint not provided")
 	}
 
 	bnEndpoints := strings.Split(c.String("bn-endpoints"), ",")
-	fmt.Printf("%v", bnEndpoints)
 
 	service, err := app.NewAppService(c.Context, bnEndpoints)
 	if err != nil {

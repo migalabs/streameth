@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	Version = "v0.0.1"
+	Version = "v1.0.0"
 	CliName = "Eth2 Block Scorer"
 	log     = logrus.WithField(
 		"cli", "CliName",
@@ -20,6 +20,9 @@ var (
 
 func main() {
 	fmt.Println(CliName, Version)
+
+	// Set the general log configurations for the entire tool
+	logrus.SetLevel(logrus.DebugLevel)
 
 	app := &cli.App{
 		Name:      CliName,

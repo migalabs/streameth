@@ -10,21 +10,23 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/tdahar/block-scorer/pkg/chain_stats"
 	"github.com/tdahar/block-scorer/pkg/client_api"
+	"github.com/tdahar/block-scorer/pkg/score"
 )
 
 var (
-	modName = "App"
+	modName = "Main App"
 	log     = logrus.WithField(
 		"module", modName,
 	)
 )
 
 type AppService struct {
-	ctx       context.Context
-	Clients   []*client_api.APIClient
-	initTime  time.Time
-	ChainTime chain_stats.ChainTime
-	HeadSlot  phase0.Slot
+	ctx          context.Context
+	Clients      []*client_api.APIClient
+	ScoreService *score.BlockScorer
+	initTime     time.Time
+	ChainTime    chain_stats.ChainTime
+	HeadSlot     phase0.Slot
 }
 
 func NewAppService(ctx context.Context, bnEndpoints []string) (*AppService, error) {
@@ -53,11 +55,13 @@ func NewAppService(ctx context.Context, bnEndpoints []string) (*AppService, erro
 	if err != nil {
 		return nil, fmt.Errorf("could not obtain head block header: %s", err)
 	}
+
 	return &AppService{
-		ctx:      ctx,
-		Clients:  clients,
-		initTime: time.Now(),
-		HeadSlot: headHeader.Header.Message.Slot,
+		ctx:          ctx,
+		Clients:      clients,
+		initTime:     time.Now(),
+		HeadSlot:     headHeader.Header.Message.Slot,
+		ScoreService: score.NewBlockScorer(ctx),
 		ChainTime: chain_stats.ChainTime{
 			GenesisTime: genesis,
 		},
@@ -65,7 +69,8 @@ func NewAppService(ctx context.Context, bnEndpoints []string) (*AppService, erro
 }
 
 func (s *AppService) Run() {
-
+	log = log.WithField("routine", "main")
+	go s.ScoreService.ListenBlocks()
 	ticker := time.After(time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot + 1))))
 
 	for {
@@ -81,7 +86,12 @@ func (s *AppService) Run() {
 			log.Infof("Entered a new slot!: %d, time: %s", s.HeadSlot, time.Now())
 			ticker = time.After(time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot + 1))))
 			// a new slot has begun, therefore execute all needed actions
-			log.Infof("Next Duration: %d", time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot+1))))
+			log.Tracef("Next Duration: %s", time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot+1))).String())
+
+			for _, client := range s.Clients {
+
+				go client.RequestBlock(s.HeadSlot, s.ScoreService.BlockChan)
+			}
 		default:
 		}
 	}
