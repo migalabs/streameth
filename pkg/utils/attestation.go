@@ -8,12 +8,20 @@ import (
 )
 
 func IsCorrectSource(attestation phase0.Attestation, block bellatrix.BeaconBlock) bool {
-	return true
+	return block.Slot-attestation.Data.Slot <= 5
 }
 
-func IsCorrectTarget(attestation phase0.Attestation, block bellatrix.BeaconBlock) bool {
+func IsCorrectTarget(attestation phase0.Attestation, block bellatrix.BeaconBlock, rootHistory map[phase0.Slot]phase0.Root) bool {
+	attEpoch := int(attestation.Data.Slot / 32)
+	firstSlotOfEpoch := phase0.Slot(attEpoch * 32)
 
-	return true
+	if root, ok := rootHistory[firstSlotOfEpoch]; !ok {
+		// assume it is okay, as we dont have any data about the root
+		return true
+	} else {
+		// we have data, compare the roots
+		return bytes.Equal(root[:], attestation.Data.Target.Root[:])
+	}
 
 }
 
