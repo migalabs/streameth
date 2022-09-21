@@ -1,4 +1,4 @@
-package score
+package analysis
 
 import (
 	"context"
@@ -13,19 +13,19 @@ var (
 		"module", moduleName)
 )
 
-type BlockScorer struct {
+type BlockAnalyzer struct {
 	ctx       context.Context
 	BlockChan chan *client_api.APIBlockAnswer
 }
 
-func NewBlockScorer(ctx context.Context) *BlockScorer {
-	return &BlockScorer{
+func NewBlockScorer(ctx context.Context) *BlockAnalyzer {
+	return &BlockAnalyzer{
 		ctx:       ctx,
 		BlockChan: make(chan *client_api.APIBlockAnswer, 10),
 	}
 }
 
-func (s *BlockScorer) ListenBlocks() {
+func (s *BlockAnalyzer) ListenBlocks() {
 	for {
 
 		select {
@@ -48,5 +48,10 @@ func (s *BlockScorer) ListenBlocks() {
 }
 
 type BeaconBlockMetrics struct {
-	Score float64
+	Score          float64
+	AttestationNum int64
+	NewVotes       int64
+	CorrectSource  int64
+	CorrectTarget  int64
+	CorrectHead    int64
 }

@@ -23,7 +23,7 @@ var (
 type AppService struct {
 	ctx          context.Context
 	Clients      []*client_api.APIClient
-	ScoreService *score.BlockScorer
+	ScoreService *score.BlockAnalyzer
 	initTime     time.Time
 	ChainTime    chain_stats.ChainTime
 	HeadSlot     phase0.Slot
