@@ -2,53 +2,79 @@ package analysis
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	"github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/sirupsen/logrus"
 	"github.com/tdahar/block-scorer/pkg/client_api"
 )
 
 var (
-	moduleName = "Scorer"
+	moduleName = "Analysis"
 	log        = logrus.WithField(
 		"module", moduleName)
 )
 
 type BlockAnalyzer struct {
-	ctx       context.Context
-	BlockChan chan *client_api.APIBlockAnswer
+	ctx              context.Context
+	Eth2Provider     client_api.APIClient
+	AttHistory       map[phase0.Slot]map[phase0.CommitteeIndex]bitfield.Bitlist
+	BlockRootHistory map[phase0.Slot]phase0.Root
+	log              *logrus.Entry
 }
 
-func NewBlockScorer(ctx context.Context) *BlockAnalyzer {
+func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, timeout time.Duration) (*BlockAnalyzer, error) {
+	client, err := client_api.NewAPIClient(ctx, label, cliEndpoint, timeout)
+	if err != nil {
+		log.Errorf("could not create eth2 client: %s", err)
+		return &BlockAnalyzer{}, err
+	}
 	return &BlockAnalyzer{
-		ctx:       ctx,
-		BlockChan: make(chan *client_api.APIBlockAnswer, 10),
-	}
+		ctx:          ctx,
+		Eth2Provider: *client,
+		AttHistory:   make(map[phase0.Slot]map[phase0.CommitteeIndex]bitfield.Bitlist),
+		log:          log.WithField("label", label),
+	}, nil
 }
 
-func (s *BlockAnalyzer) ListenBlocks() {
-	for {
+func (b *BlockAnalyzer) ProcessNewBlock(slot phase0.Slot) error {
 
-		select {
-		case <-s.ctx.Done():
-			log.Infof("context has died, closing block listener routine")
-			close(s.BlockChan)
-			return
-
-		case blockTask, ok := <-s.BlockChan:
-			if !ok {
-				log.Errorf("could not receive new block task")
-			} else {
-				log.Infof("Analyzing block from %s!", blockTask.Label)
-			}
-
-		default:
-		}
+	randaoReveal := phase0.BLSSignature{}
+	graffiti := []byte("")
+	snapshot := time.Now()
+	block, err := b.Eth2Provider.Api.BeaconBlockProposal(b.ctx, slot, randaoReveal, graffiti)
+	blockTime := time.Since(snapshot).Seconds()
+	if err != nil {
+		return fmt.Errorf("error requesting block from %s: %s", b.Eth2Provider.Label, err)
 
 	}
+	for i := range b.AttHistory {
+		if i+32 < slot { // attestations can only reference 32 slots back
+			delete(b.AttHistory, i) // remove old entries from the map
+		}
+	}
+
+	for i := range b.BlockRootHistory {
+		if i+64 < slot { // attestations can only reference 32 slots back
+			delete(b.BlockRootHistory, i) // remove old entries from the map
+		}
+	}
+
+	metrics, err := b.BellatrixBlockMetrics(block.Bellatrix)
+	if err != nil {
+		return fmt.Errorf("error analyzing block from %s: %s", b.Eth2Provider.Label, err)
+	}
+	b.log.Infof("Block Duration: %f", blockTime)
+	b.log.Infof("Metrics: %+v", metrics)
+
+	return nil
 }
 
 type BeaconBlockMetrics struct {
-	Score          float64
+	AttScore       float64
+	SyncScore      float64
 	AttestationNum int64
 	NewVotes       int64
 	CorrectSource  int64
