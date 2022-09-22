@@ -29,9 +29,10 @@ type AppService struct {
 
 func NewAppService(ctx context.Context, bnEndpoints []string) (*AppService, error) {
 
-	analyzers := make([]*analysis.BlockAnalyzer, 0)
+	analyzers := make([]*analysis.BlockAnalyzer, 0) // one analyzer per beacon node
 
 	for i := range bnEndpoints {
+		// parse each beacon node endpoint
 		if !strings.Contains(bnEndpoints[i], "/") {
 			log.Errorf("incorrect format for endpoint: %s", bnEndpoints[i])
 		}
@@ -44,11 +45,12 @@ func NewAppService(ctx context.Context, bnEndpoints []string) (*AppService, erro
 		}
 		analyzers = append(analyzers, newAnalyzer)
 	}
-
+	// get genesis time to calculate each slot time
 	genesis, err := analyzers[0].Eth2Provider.Api.GenesisTime(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not obtain genesis time: %s", err)
 	}
+	// check the current chain head
 	headHeader, err := analyzers[0].Eth2Provider.Api.BeaconBlockHeader(ctx, "head")
 	if err != nil {
 		return nil, fmt.Errorf("could not obtain head block header: %s", err)
@@ -65,9 +67,11 @@ func NewAppService(ctx context.Context, bnEndpoints []string) (*AppService, erro
 	}, nil
 }
 
+// Main routine
 func (s *AppService) Run() {
 	log = log.WithField("routine", "main")
 
+	// tick every slot start (12 seconds)
 	ticker := time.After(time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot + 1))))
 
 	for {
@@ -78,16 +82,16 @@ func (s *AppService) Run() {
 			return
 
 		case <-ticker:
-
+			// we entered a new slot time
 			s.HeadSlot++
 			log.Infof("Entered a new slot!: %d, time: %s", s.HeadSlot, time.Now())
 			// reset ticker to next slot
 			ticker = time.After(time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot + 1))))
 			// a new slot has begun, therefore execute all needed actions
-			log.Tracef("Next Duration: %s", time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot+1))).String())
+			log.Tracef("Time until next slot tick: %s", time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot+1))).String())
 
 			for _, analyzer := range s.Analyzers {
-
+				// for each beacon node, get a new block and analyze it
 				go analyzer.ProcessNewBlock(s.HeadSlot)
 			}
 		default:

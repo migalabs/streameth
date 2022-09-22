@@ -19,10 +19,10 @@ var (
 
 type BlockAnalyzer struct {
 	ctx              context.Context
-	Eth2Provider     client_api.APIClient
-	AttHistory       map[phase0.Slot]map[phase0.CommitteeIndex]bitfield.Bitlist
-	BlockRootHistory map[phase0.Slot]phase0.Root
-	log              *logrus.Entry
+	Eth2Provider     client_api.APIClient                                       // connection to the beacon node
+	AttHistory       map[phase0.Slot]map[phase0.CommitteeIndex]bitfield.Bitlist // 32 slots of attestation per slot and committeeIndex
+	BlockRootHistory map[phase0.Slot]phase0.Root                                // 64 slots of roots
+	log              *logrus.Entry                                              // each analyzer has its own logger
 }
 
 func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, timeout time.Duration) (*BlockAnalyzer, error) {
@@ -32,10 +32,11 @@ func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, tim
 		return &BlockAnalyzer{}, err
 	}
 	return &BlockAnalyzer{
-		ctx:          ctx,
-		Eth2Provider: *client,
-		AttHistory:   make(map[phase0.Slot]map[phase0.CommitteeIndex]bitfield.Bitlist),
-		log:          log.WithField("label", label),
+		ctx:              ctx,
+		Eth2Provider:     *client,
+		AttHistory:       make(map[phase0.Slot]map[phase0.CommitteeIndex]bitfield.Bitlist),
+		BlockRootHistory: make(map[phase0.Slot]phase0.Root),
+		log:              log.WithField("label", label),
 	}, nil
 }
 
@@ -45,7 +46,7 @@ func (b *BlockAnalyzer) ProcessNewBlock(slot phase0.Slot) error {
 	graffiti := []byte("")
 	snapshot := time.Now()
 	block, err := b.Eth2Provider.Api.BeaconBlockProposal(b.ctx, slot, randaoReveal, graffiti)
-	blockTime := time.Since(snapshot).Seconds()
+	blockTime := time.Since(snapshot).Seconds() // time to ask for block
 	if err != nil {
 		return fmt.Errorf("error requesting block from %s: %s", b.Eth2Provider.Label, err)
 
@@ -62,6 +63,7 @@ func (b *BlockAnalyzer) ProcessNewBlock(slot phase0.Slot) error {
 		}
 	}
 
+	// for now we just have Bellatrix
 	metrics, err := b.BellatrixBlockMetrics(block.Bellatrix)
 	if err != nil {
 		return fmt.Errorf("error analyzing block from %s: %s", b.Eth2Provider.Label, err)

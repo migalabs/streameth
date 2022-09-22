@@ -34,7 +34,7 @@ type PostgresDBService struct {
 func ConnectToDB(ctx context.Context, url string) (*PostgresDBService, error) {
 	mainCtx, cancel := context.WithCancel(ctx)
 	// spliting the url to don't share any confidential information on logs
-	log.Infof("Conneting to postgres DB %s", url)
+
 	if strings.Contains(url, "@") {
 		log.Debugf("Connecting to PostgresDB at %s", strings.Split(url, "@")[1])
 	}

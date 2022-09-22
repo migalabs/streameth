@@ -16,9 +16,8 @@ const (
 	SYNC_REWARD_WEIGHT   = 2
 )
 
-// Map is attestation slot -> committee index -> validator committee index -> aggregate.
-func (p *BlockAnalyzer) BellatrixBlockMetrics(block *bellatrix.BeaconBlock) (BeaconBlockMetrics, error) {
-	log = log.WithField("method", "bellatrix-block")
+func (b *BlockAnalyzer) BellatrixBlockMetrics(block *bellatrix.BeaconBlock) (BeaconBlockMetrics, error) {
+	// log = b.log.WithField("method", "bellatrix-block") // add extra log for function
 	totalNewVotes := 0
 	totalScore := 0
 
@@ -26,31 +25,31 @@ func (p *BlockAnalyzer) BellatrixBlockMetrics(block *bellatrix.BeaconBlock) (Bea
 		newVotes := 0
 		slot := attestation.Data.Slot
 
-		if _, exists := p.AttHistory[slot]; !exists {
+		if _, exists := b.AttHistory[slot]; !exists {
 			// add slot to map
-			p.AttHistory[slot] = make(map[phase0.CommitteeIndex]bitfield.Bitlist)
+			b.AttHistory[slot] = make(map[phase0.CommitteeIndex]bitfield.Bitlist)
 		}
 
 		committeIndex := attestation.Data.Index
-		if _, exists := p.AttHistory[slot][committeIndex]; !exists {
-			p.AttHistory[slot][committeIndex] = bitfield.NewBitlist(attestation.AggregationBits.Len())
+		if _, exists := b.AttHistory[slot][committeIndex]; !exists {
+			b.AttHistory[slot][committeIndex] = bitfield.NewBitlist(attestation.AggregationBits.Len())
 		}
 
 		attestingIndices := attestation.AggregationBits.BitIndices()
 
 		for _, idx := range attestingIndices {
-			if p.AttHistory[slot][committeIndex].BitAt(uint64(idx)) {
+			if b.AttHistory[slot][committeIndex].BitAt(uint64(idx)) {
 				// already registered vote
 				continue
 			}
-			p.AttHistory[slot][committeIndex].SetBitAt(uint64(idx), true)
+			b.AttHistory[slot][committeIndex].SetBitAt(uint64(idx), true)
 			newVotes++
 		}
 		score := 0
 		if utils.IsCorrectSource(*attestation, *block) {
 			score += newVotes * TIMELY_SOURCE_WEIGHT
 		}
-		if utils.IsCorrectTarget(*attestation, *block, p.BlockRootHistory) {
+		if utils.IsCorrectTarget(*attestation, *block, b.BlockRootHistory) {
 			score += newVotes * TIMELY_TARGET_WEIGHT
 		}
 		if utils.IsCorrectHead(*attestation, *block) {

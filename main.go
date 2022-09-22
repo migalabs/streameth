@@ -36,10 +36,10 @@ func main() {
 		},
 		EnableBashCompletion: true,
 		Commands: []*cli.Command{
-			cmd.ScorerCommand,
+			cmd.AnalyzerCommand,
 		},
 	}
-	// generate the crawler
+	// generate the block analyzer
 	if err := app.RunContext(context.Background(), os.Args); err != nil {
 		log.Errorf("error: %v\n", err)
 		os.Exit(1)

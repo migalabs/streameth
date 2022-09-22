@@ -53,19 +53,19 @@ func (p *PostgresDBService) createScoreMetricsTable(ctx context.Context, pool *p
 	return nil
 }
 
-func (p *PostgresDBService) InsertNewScore(slot int, label string, score float64, duration float64, attMetrics AttestationMetrics) error {
+func (p *PostgresDBService) InsertNewScore(slot int, label string, score float64, duration float64, blockMetrics BlockMetricsModel) error {
 
 	_, err := p.psqlPool.Exec(p.ctx, InsertNewScore,
 		slot,
 		label,
 		score,
 		duration,
-		attMetrics.CorrectSource,
-		attMetrics.CorrectTarget,
-		attMetrics.CorrectHead,
-		attMetrics.Sync1Bits,
-		attMetrics.AttNum,
-		attMetrics.NewVotes)
+		blockMetrics.CorrectSource,
+		blockMetrics.CorrectTarget,
+		blockMetrics.CorrectHead,
+		blockMetrics.Sync1Bits,
+		blockMetrics.AttNum,
+		blockMetrics.NewVotes)
 
 	if err != nil {
 		return errors.Wrap(err, "error inserting row in score metrics table")
@@ -73,7 +73,11 @@ func (p *PostgresDBService) InsertNewScore(slot int, label string, score float64
 	return nil
 }
 
-type AttestationMetrics struct {
+type BlockMetricsModel struct {
+	Slot          int
+	Label         string
+	Score         float64
+	Duration      float64
 	CorrectSource int
 	CorrectTarget int
 	CorrectHead   int
