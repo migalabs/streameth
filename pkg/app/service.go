@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/tdahar/block-scorer/pkg/analysis"
 	"github.com/tdahar/block-scorer/pkg/chain_stats"
+	"github.com/tdahar/block-scorer/pkg/postgresql"
 )
 
 var (
@@ -21,24 +22,32 @@ var (
 
 type AppService struct {
 	ctx       context.Context
-	Analyzers []*analysis.BlockAnalyzer
+	Analyzers []*analysis.ClientLiveData
 	initTime  time.Time
 	ChainTime chain_stats.ChainTime
 	HeadSlot  phase0.Slot
 }
 
-func NewAppService(ctx context.Context, bnEndpoints []string) (*AppService, error) {
+func NewAppService(ctx context.Context, bnEndpoints []string, dbEndpooint string, dbWorkers int) (*AppService, error) {
 
-	analyzers := make([]*analysis.BlockAnalyzer, 0) // one analyzer per beacon node
+	dbClient, err := postgresql.ConnectToDB(ctx, dbEndpooint, dbWorkers)
+
+	if err != nil {
+		log.Panicf("could not connect to database: %s", err)
+	}
+
+	analyzers := make([]*analysis.ClientLiveData, 0) // one analyzer per beacon node
 
 	for i := range bnEndpoints {
 		// parse each beacon node endpoint
 		if !strings.Contains(bnEndpoints[i], "/") {
 			log.Errorf("incorrect format for endpoint: %s", bnEndpoints[i])
 		}
-		label := strings.Split(bnEndpoints[i], "/")[0]
+		// label := strings.Split(bnEndpoints[i], "/")[0]
 		endpoint := strings.Split(bnEndpoints[i], "/")[1]
-		newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, label, endpoint, time.Second*5)
+		// newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, label, endpoint, time.Second*5)
+		newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, bnEndpoints[i], endpoint, time.Second*5, dbClient)
+
 		if err != nil {
 			log.Errorf("could not create client for endpoint: %s ", endpoint, err)
 			continue
@@ -46,6 +55,7 @@ func NewAppService(ctx context.Context, bnEndpoints []string) (*AppService, erro
 		analyzers = append(analyzers, newAnalyzer)
 	}
 	// get genesis time to calculate each slot time
+	// Keep in mind first endpoint will be used as master
 	genesis, err := analyzers[0].Eth2Provider.Api.GenesisTime(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not obtain genesis time: %s", err)
@@ -55,21 +65,46 @@ func NewAppService(ctx context.Context, bnEndpoints []string) (*AppService, erro
 	if err != nil {
 		return nil, fmt.Errorf("could not obtain head block header: %s", err)
 	}
-
 	return &AppService{
 		ctx:       ctx,
 		Analyzers: analyzers,
 		initTime:  time.Now(),
-		HeadSlot:  headHeader.Header.Message.Slot, // start 64 slots behind to create attestation history
+		HeadSlot:  headHeader.Header.Message.Slot,
 		ChainTime: chain_stats.ChainTime{
 			GenesisTime: genesis,
 		},
 	}, nil
 }
 
-// Main routine
+// Main routine: build block history and block proposals every 12 seconds
 func (s *AppService) Run() {
 	log = log.WithField("routine", "main")
+	historyBuilt := false
+
+	for !historyBuilt {
+		historyBuilt = true
+		for _, item := range s.Analyzers {
+			ok := item.BuildHistory()
+			if !ok {
+				historyBuilt = false
+			}
+		}
+	}
+
+	// Subscribe to events from each client
+	for _, item := range s.Analyzers {
+		err := item.Eth2Provider.Api.Events(s.ctx, []string{"head"}, item.HandleHeadEvent) // every new head
+		if err != nil {
+			log.Panicf("failed to subscribe to head events: %s, label: %s", err, item.Eth2Provider.Label)
+		}
+
+		// every new attestation
+		err = item.Eth2Provider.Api.Events(s.ctx, []string{"attestation"}, item.HandleAttestationEvent) // every new head
+		if err != nil {
+			log.Panicf("failed to subscribe to attestation events: %s, label: %s", err, item.Eth2Provider.Label)
+		}
+
+	}
 
 	// tick every slot start (12 seconds)
 	ticker := time.After(time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot + 1))))
@@ -89,11 +124,11 @@ func (s *AppService) Run() {
 			ticker = time.After(time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot + 1))))
 			// a new slot has begun, therefore execute all needed actions
 			log.Tracef("Time until next slot tick: %s", time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot+1))).String())
-
 			for _, analyzer := range s.Analyzers {
 				// for each beacon node, get a new block and analyze it
 				go analyzer.ProcessNewBlock(s.HeadSlot)
 			}
+
 		default:
 		}
 	}

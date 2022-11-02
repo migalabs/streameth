@@ -6,9 +6,12 @@ import (
 	"time"
 
 	"github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/jackc/pgx/v4"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/sirupsen/logrus"
+	"github.com/tdahar/block-scorer/pkg/analysis/additional_structs"
 	"github.com/tdahar/block-scorer/pkg/client_api"
+	"github.com/tdahar/block-scorer/pkg/postgresql"
 )
 
 var (
@@ -17,36 +20,45 @@ var (
 		"module", moduleName)
 )
 
-type BlockAnalyzer struct {
+type ClientLiveData struct {
 	ctx              context.Context
 	Eth2Provider     client_api.APIClient                                       // connection to the beacon node
 	AttHistory       map[phase0.Slot]map[phase0.CommitteeIndex]bitfield.Bitlist // 32 slots of attestation per slot and committeeIndex
 	BlockRootHistory map[phase0.Slot]phase0.Root                                // 64 slots of roots
 	log              *logrus.Entry                                              // each analyzer has its own logger
+	ProcessNewHead   chan struct{}
+	DBClient         *postgresql.PostgresDBService
+	writeBatch       pgx.Batch
+	EpochData        additional_structs.EpochStructs
 }
 
-func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, timeout time.Duration) (*BlockAnalyzer, error) {
+func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, timeout time.Duration, dbClient *postgresql.PostgresDBService) (*ClientLiveData, error) {
 	client, err := client_api.NewAPIClient(ctx, label, cliEndpoint, timeout)
 	if err != nil {
 		log.Errorf("could not create eth2 client: %s", err)
-		return &BlockAnalyzer{}, err
+		return &ClientLiveData{}, err
 	}
-	return &BlockAnalyzer{
+	return &ClientLiveData{
 		ctx:              ctx,
 		Eth2Provider:     *client,
+		DBClient:         dbClient,
 		AttHistory:       make(map[phase0.Slot]map[phase0.CommitteeIndex]bitfield.Bitlist),
 		BlockRootHistory: make(map[phase0.Slot]phase0.Root),
 		log:              log.WithField("label", label),
+		writeBatch:       pgx.Batch{},
+		EpochData:        additional_structs.NewEpochData(client.Api),
 	}, nil
 }
 
-func (b *BlockAnalyzer) ProcessNewBlock(slot phase0.Slot) error {
-
+// Asks for a block proposal to the client and stores score in the database
+func (b *ClientLiveData) ProcessNewBlock(slot phase0.Slot) error {
+	log := b.log.WithField("task", "generate-block")
+	log.Debugf("processing new block: %d\n", slot)
 	randaoReveal := phase0.BLSSignature{}
 	graffiti := []byte("")
 	snapshot := time.Now()
-	block, err := b.Eth2Provider.Api.BeaconBlockProposal(b.ctx, slot, randaoReveal, graffiti)
-	blockTime := time.Since(snapshot).Seconds() // time to ask for block
+	block, err := b.Eth2Provider.Api.BeaconBlockProposal(b.ctx, slot, randaoReveal, graffiti) // ask for block proposal
+	blockTime := time.Since(snapshot).Seconds()                                               // time to generate block
 	if err != nil {
 		return fmt.Errorf("error requesting block from %s: %s", b.Eth2Provider.Label, err)
 
@@ -68,18 +80,11 @@ func (b *BlockAnalyzer) ProcessNewBlock(slot phase0.Slot) error {
 	if err != nil {
 		return fmt.Errorf("error analyzing block from %s: %s", b.Eth2Provider.Label, err)
 	}
-	b.log.Infof("Block Duration: %f", blockTime)
-	b.log.Infof("Metrics: %+v", metrics)
+	log.Infof("Block Generation Time: %f", blockTime)
+	log.Infof("Metrics: %+v", metrics)
+	b.DBClient.InsertNewScore(metrics)
 
+	// We block the update attestations as new head could impact attestations of the proposed block
+	b.ProcessNewHead <- struct{}{} // Allow the new head to update attestations
 	return nil
-}
-
-type BeaconBlockMetrics struct {
-	AttScore       float64
-	SyncScore      float64
-	AttestationNum int64
-	NewVotes       int64
-	CorrectSource  int64
-	CorrectTarget  int64
-	CorrectHead    int64
 }
