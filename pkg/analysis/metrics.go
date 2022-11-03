@@ -1,6 +1,8 @@
 package analysis
 
 import (
+	"sort"
+
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
@@ -17,10 +19,16 @@ const (
 	SYNC_REWARD_WEIGHT   = 2
 )
 
+// https://github.com/attestantio/vouch/blob/0c75ee8315dc4e5df85eb2aa09b4acc2b4436661/strategies/beaconblockproposal/best/score.go#L222
+// This function receives a new block proposal and ouputs a block score and metrics about the block
 func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock) (postgresql.BlockMetricsModel, error) {
 	// log := b.log.WithField("task", "bellatrix-block-score") // add extra log for function
 	totalNewVotes := 0
 	totalScore := 0
+	attScore := 0
+	totalCorrectSource := 0
+	totalCorrectTarget := 0
+	totalCorrectHead := 0
 	attested := make(map[phase0.Slot]map[phase0.CommitteeIndex]bitfield.Bitlist) // for current block
 	for _, attestation := range block.Body.Attestations {
 		newVotes := 0
@@ -54,29 +62,88 @@ func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock) (po
 		score := 0
 		if utils.IsCorrectSource(*attestation, *block) {
 			score += newVotes * TIMELY_SOURCE_WEIGHT
+			totalCorrectSource += newVotes
 		}
 		if utils.IsCorrectTarget(*attestation, *block, b.BlockRootHistory) {
 			score += newVotes * TIMELY_TARGET_WEIGHT
+			totalCorrectTarget += newVotes
 		}
 		if utils.IsCorrectHead(*attestation, *block) {
 			score += newVotes * TIMELY_HEAD_WEIGHT
+			totalCorrectHead += newVotes
 		}
 
 		totalNewVotes += newVotes
 		// denominator := (WEIGHT_DENOMINATOR - PROPOSER_WEIGHT) * WEIGHT_DENOMINATOR / PROPOSER_WEIGHT
-		totalScore += score / WEIGHT_DENOMINATOR
+		attScore += score / WEIGHT_DENOMINATOR
 
 	}
 
-	// syncCommitteeScore := float64(block.Body.SyncAggregate.SyncCommitteeBits.Count()) * float64(SYNC_REWARD_WEIGHT) / float64(WEIGHT_DENOMINATOR)
+	syncCommitteeScore := float64(block.Body.SyncAggregate.SyncCommitteeBits.Count()) * float64(SYNC_REWARD_WEIGHT) / float64(WEIGHT_DENOMINATOR)
+
+	attesterSlashingScore, proposerSlashingScore := scoreSlashings(block.Body.AttesterSlashings, block.Body.ProposerSlashings)
+
+	totalScore = attScore + int(syncCommitteeScore) + int(attesterSlashingScore) + int(proposerSlashingScore)
 
 	return postgresql.BlockMetricsModel{
-		Slot:          int(block.Slot),
-		Label:         b.Eth2Provider.Label,
-		CorrectSource: 0,
-		CorrectTarget: 0,
-		CorrectHead:   0,
-		Score:         float64(totalScore),
-		NewVotes:      totalNewVotes,
+		Slot:              int(block.Slot),
+		Label:             b.Eth2Provider.Label,
+		CorrectSource:     totalCorrectSource,
+		CorrectTarget:     totalCorrectTarget,
+		CorrectHead:       totalCorrectHead,
+		Score:             float64(totalScore),
+		NewVotes:          totalNewVotes,
+		AttNum:            len(block.Body.Attestations),
+		Sync1Bits:         int(block.Body.SyncAggregate.SyncCommitteeBits.Count()),
+		AttesterSlashings: len(block.Body.AttesterSlashings),
+		ProposerSlashings: len(block.Body.ProposerSlashings),
 	}, nil
+}
+
+// https://github.com/attestantio/vouch/blob/0c75ee8315dc4e5df85eb2aa09b4acc2b4436661/strategies/beaconblockproposal/best/score.go#L312
+func scoreSlashings(attesterSlashings []*phase0.AttesterSlashing,
+	proposerSlashings []*phase0.ProposerSlashing,
+) (float64, float64) {
+	// Slashing reward will be at most MAX_EFFECTIVE_BALANCE/WHISTLEBLOWER_REWARD_QUOTIENT,
+	// which is 0.0625 Ether.
+	// Individual attestation reward at 250K validators will be around 23,000 GWei, or .000023 Ether.
+	// So we state that a single slashing event has the same weight as about 2,700 attestations.
+	slashingWeight := float64(2700)
+
+	// Add proposer slashing scores.
+	proposerSlashingScore := float64(len(proposerSlashings)) * slashingWeight
+
+	// Add attester slashing scores.
+	indicesSlashed := 0
+	for _, slashing := range attesterSlashings {
+		indicesSlashed += len(intersection(slashing.Attestation1.AttestingIndices, slashing.Attestation2.AttestingIndices))
+	}
+	attesterSlashingScore := slashingWeight * float64(indicesSlashed)
+
+	return attesterSlashingScore, proposerSlashingScore
+}
+
+// https://github.com/attestantio/vouch/blob/0c75ee8315dc4e5df85eb2aa09b4acc2b4436661/strategies/beaconblockproposal/best/score.go#L426
+// intersection returns a list of items common between the two sets.
+func intersection(set1 []uint64, set2 []uint64) []uint64 {
+	sort.Slice(set1, func(i, j int) bool { return set1[i] < set1[j] })
+	sort.Slice(set2, func(i, j int) bool { return set2[i] < set2[j] })
+	res := make([]uint64, 0)
+
+	set1Pos := 0
+	set2Pos := 0
+	for set1Pos < len(set1) && set2Pos < len(set2) {
+		switch {
+		case set1[set1Pos] < set2[set2Pos]:
+			set1Pos++
+		case set2[set2Pos] < set1[set1Pos]:
+			set2Pos++
+		default:
+			res = append(res, set1[set1Pos])
+			set1Pos++
+			set2Pos++
+		}
+	}
+
+	return res
 }
