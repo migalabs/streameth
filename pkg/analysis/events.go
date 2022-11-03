@@ -17,13 +17,40 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 		return
 	}
 
-	data := event.Data.(*api.HeadEvent)
-	log.Debugf("Received a new head event")
+	data := event.Data.(*api.HeadEvent) // cast to head event
+	log.Debugf("Received a new head event: slot %d", data.Slot)
 
+	// we only receive the block hash, get the new block
 	newBlock, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, hex.EncodeToString(data.Block[:]))
-	b.DBClient.InsertNewBlock(int(data.Slot), b.Eth2Provider.Label, timestamp)
+
+	// Track if there is any missing slot
+	if b.CurrentHeadSlot != 0 && // we are not at the beginning of the run
+		newBlock.Bellatrix.Message.Slot-phase0.Slot(b.CurrentHeadSlot) > 1 { // there a gap bigger than 1 with the new head
+		for i := b.CurrentHeadSlot; i < uint64(newBlock.Bellatrix.Message.Slot); i++ {
+			params := make([]interface{}, 2)
+			params = append(params, i)
+			params = append(params, b.Eth2Provider.Label)
+			writeTask := postgresql.WriteTask{
+				QueryString: postgresql.InsertNewMissedBlock,
+				Params:      params,
+			}
+			b.DBClient.WriteChan <- writeTask // store
+		}
+	}
+	params := make([]interface{}, 3)
+	params = append(params, int(data.Slot))
+	params = append(params, b.Eth2Provider.Label)
+	params = append(params, timestamp)
+	writeTask := postgresql.WriteTask{
+		QueryString: postgresql.InsertNewBlock,
+		Params:      params,
+	}
+	b.DBClient.WriteChan <- writeTask // store
+
+	// wait for the block proposal to be processed, otherwise the attestations could get mixed
+	// with the proposal
 	<-b.ProcessNewHead
-	b.UpdateAttestations(*newBlock.Bellatrix.Message)
+	b.UpdateAttestations(*newBlock.Bellatrix.Message) // now update the attestations with the new head block in the chain
 
 	if err != nil {
 		log.Errorf("could not retrieve the head block: %s", err)
@@ -31,6 +58,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 
 }
 
+// When the node receives a new attestation, this function is tiggered
 func (b *ClientLiveData) HandleAttestationEvent(event *api.Event) {
 	timestamp := time.Now()
 
@@ -41,36 +69,48 @@ func (b *ClientLiveData) HandleAttestationEvent(event *api.Event) {
 		log.Errorf("attestation event does not contain anything")
 	}
 
-	data := event.Data.(*phase0.Attestation)
+	data := event.Data.(*phase0.Attestation) // cast
+	// With the beacon committee we can identify the attesting validators
+	// Will not track this for now
+	// beaconCommittee := b.EpochData.GetBeaconCommittee(uint64(data.Data.Slot), uint64(data.Data.Index))
 
-	log.Debugf("Initiating processing event in %f seconds", time.Since(timestamp).Seconds())
-	beaconCommittee := b.EpochData.GetBeaconCommittee(uint64(data.Data.Slot), uint64(data.Data.Index))
+	// if beaconCommittee == nil {
+	// 	log.Errorf("could not retrieve beacon committee at slot %d", uint64(data.Data.Slot))
+	// 	return
+	// }
+	// attestingVals := make([]phase0.ValidatorIndex, 0)
 
-	if beaconCommittee == nil {
-		log.Errorf("could not retrieve beacon committee at slot %d", uint64(data.Data.Slot))
-	}
-	attestingVals := make([]phase0.ValidatorIndex, 0)
+	// for _, bit := range data.AggregationBits.BitIndices() {
+	// 	attestingVals = append(attestingVals, beaconCommittee[bit])
+	// }
 
-	for _, bit := range data.AggregationBits.BitIndices() {
-		attestingVals = append(attestingVals, beaconCommittee[bit])
-	}
-	log.Debugf("Initiating writing tasks event in %f seconds", time.Since(timestamp).Seconds())
-	// create params to be written
+	// create params to be written, same for all validators (same attestation)
 	baseParams := make([]interface{}, 0)
 	baseParams = append(baseParams, b.Eth2Provider.Label)
 	baseParams = append(baseParams, uint64(data.Data.Slot))
 	baseParams = append(baseParams, uint64(data.Data.Index))
 	baseParams = append(baseParams, timestamp)
+	baseParams = append(baseParams, hex.EncodeToString(data.Signature[:]))
+	baseParams = append(baseParams, hex.EncodeToString(data.Data.Source.Root[:]))
+	baseParams = append(baseParams, hex.EncodeToString(data.Data.Target.Root[:]))
+	baseParams = append(baseParams, hex.EncodeToString(data.Data.BeaconBlockRoot[:]))
 
-	// for each attesting validator
-	for _, item := range attestingVals {
-		params := append(baseParams, uint64(item))
-		writeTask := postgresql.WriteTask{
-			QueryString: postgresql.InsertNewAtt,
-			Params:      params,
-		}
-		b.DBClient.WriteChan <- writeTask // send task to be written
+	// for each attesting validator, not use for now
+	// for _, item := range attestingVals {
+	// 	params := append(baseParams, uint64(item)) // append the validator index
+	// 	writeTask := postgresql.WriteTask{
+	// 		QueryString: postgresql.InsertNewAtt,
+	// 		Params:      params,
+	// 	}
+	// 	b.DBClient.WriteChan <- writeTask // send task to be written
+	// }
+
+	writeTask := postgresql.WriteTask{
+		QueryString: postgresql.InsertNewAtt,
+		Params:      baseParams,
 	}
+
+	b.DBClient.WriteChan <- writeTask // send task to be written
 
 	log.Debugf("Finished processing event in %f seconds", time.Since(timestamp).Seconds())
 
