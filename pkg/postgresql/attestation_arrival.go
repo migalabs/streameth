@@ -16,7 +16,7 @@ import (
 var (
 	CreateAttTable = `
 		CREATE TABLE IF NOT EXISTS t_att_metrics(
-			f_label VARCHAR(100),
+			f_label TEXT,
 			f_slot INT,
 			f_committee_index INT,
 			f_signature TEXT,
@@ -24,7 +24,7 @@ var (
 			f_target_root TEXT,
 			f_head_root TEXT,
 			f_timestamp TIMESTAMP,
-			CONSTRAINT PK_Attestation PRIMARY KEY (f_label,f_slot,f_committee_index,f_signature));`
+		CONSTRAINT PK_Attestation PRIMARY KEY (f_label,f_slot,f_committee_index,f_signature));`
 
 	InsertNewAtt = `
 		INSERT INTO t_att_metrics (	
@@ -36,7 +36,8 @@ var (
 			f_source_root,
 			f_target_root,
 			f_head_root)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT DO NOTHING;`
 )
 
 // in case the table did not exist

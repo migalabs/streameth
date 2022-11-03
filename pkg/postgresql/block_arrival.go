@@ -17,12 +17,12 @@ var (
 	CREATE_BLOCK_ARRIVAL_TABLE = `
 		CREATE TABLE IF NOT EXISTS t_block_metrics(
 			f_slot INT,
-			f_label VARCHAR(100),
+			f_label TEXT,
 			f_timestamp TIME,
 			CONSTRAINT PK_Block PRIMARY KEY (f_slot,f_label));`
 
 	InsertNewBlock = `
-		INSERT INTO t_score_metrics (	
+		INSERT INTO t_block_metrics (	
 			f_slot, 
 			f_label, 
 			f_timestamp)

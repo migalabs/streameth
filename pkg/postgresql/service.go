@@ -178,10 +178,6 @@ func (p PostgresDBService) ExecuteBatch(batch pgx_v4.Batch) error {
 		rows, qerr = batchResults.Query()
 		rows.Close()
 	}
-	if qerr.Error() != "no result" {
-		log.Errorf(qerr.Error())
-	}
-
 	// p.MonitorStruct.AddDBWrite(time.Since(snapshot).Seconds())
 	log.Debugf("Batch process time: %f, batch size: %d", time.Since(snapshot).Seconds(), batch.Len())
 

@@ -17,7 +17,7 @@ var (
 	CREATE_SCORE_TABLE = `
 		CREATE TABLE IF NOT EXISTS t_score_metrics(
 			f_slot INT,
-			f_label VARCHAR(100),
+			f_label TEXT,
 			f_score FLOAT,
 			f_duration FLOAT,
 			f_correct_source INT,
