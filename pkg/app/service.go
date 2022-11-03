@@ -99,7 +99,7 @@ func (s *AppService) Run() {
 		}
 
 		// every new attestation
-		err = item.Eth2Provider.Api.Events(s.ctx, []string{"attestation"}, item.HandleAttestationEvent) // every new head
+		err = item.Eth2Provider.Api.Events(s.ctx, []string{"attestation"}, item.HandleAttestationEvent) // every new attestation
 		if err != nil {
 			log.Panicf("failed to subscribe to attestation events: %s, label: %s", err, item.Eth2Provider.Label)
 		}
