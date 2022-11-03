@@ -10,10 +10,8 @@ BIN="./build/eth_cl_live_metrics"
 build: 
     $(GOCC) build -o $(BIN)
 
-
 install:
     $(GOCC) install
-
 
 dependencies:
     $(GIT_SUBM) update --init
