@@ -19,7 +19,7 @@ var (
 			f_slot INT,
 			f_label VARCHAR(100),
 			f_timestamp TIME,
-			CONSTRAINT PK_SlotAddr PRIMARY KEY (f_slot,f_label));`
+			CONSTRAINT PK_Block PRIMARY KEY (f_slot,f_label));`
 
 	InsertNewBlock = `
 		INSERT INTO t_score_metrics (	
@@ -34,7 +34,7 @@ func (p *PostgresDBService) createBlockMetricsTable(ctx context.Context, pool *p
 	// create the tables
 	_, err := pool.Exec(ctx, CREATE_BLOCK_ARRIVAL_TABLE)
 	if err != nil {
-		return errors.Wrap(err, "error creating score metrics table")
+		return errors.Wrap(err, "error creating block arrival metrics table")
 	}
 	return nil
 }

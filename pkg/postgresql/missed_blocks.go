@@ -18,7 +18,7 @@ var (
 		CREATE TABLE IF NOT EXISTS t_missed_blocks(
 			f_slot INT,
 			f_label TEXT,
-			CONSTRAINT PK_SlotAddr PRIMARY KEY (f_slot,f_label));`
+			CONSTRAINT PK_MissedBlock PRIMARY KEY (f_slot,f_label));`
 
 	InsertNewMissedBlock = `
 		INSERT INTO t_missed_blocks (	

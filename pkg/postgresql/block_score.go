@@ -26,7 +26,7 @@ var (
 			f_sync_bits INT,
 			f_att_num INT,
 			f_new_votes INT,
-			CONSTRAINT PK_SlotAddr PRIMARY KEY (f_slot,f_label));`
+			CONSTRAINT PK_Score PRIMARY KEY (f_slot,f_label));`
 
 	InsertNewScore = `
 		INSERT INTO t_score_metrics (	
