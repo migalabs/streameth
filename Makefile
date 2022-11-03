@@ -3,7 +3,7 @@ MKDIR_P=mkdir -p
 GIT_SUBM=git submodule
 
 BIN_PATH=./build
-BIN="./build/block-scorer"
+BIN="./build/eth_cl_live_metrics"
 
 .PHONY: check dependencies build install clean
 
