@@ -20,7 +20,7 @@ var (
 	log      = logrus.WithField(
 		"module", PsqlType,
 	)
-	MAX_BATCH_QUEUE   = 3000
+	MAX_BATCH_QUEUE   = 100
 	WRITE_CHAN_LENGTH = 400000
 )
 
@@ -82,6 +82,16 @@ func (p *PostgresDBService) Close() {
 func (p *PostgresDBService) init(ctx context.Context, pool *pgxpool.Pool) error {
 	// create the tables
 	err := p.createScoreMetricsTable(ctx, pool)
+	if err != nil {
+		return err
+	}
+
+	err = p.createBlockMetricsTable(ctx, pool)
+	if err != nil {
+		return err
+	}
+
+	err = p.createMissedBlockMetricsTable(ctx, pool)
 	if err != nil {
 		return err
 	}

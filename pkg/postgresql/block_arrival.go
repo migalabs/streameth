@@ -8,7 +8,6 @@ This file together with the model, has all the needed methods to interact with t
 
 import (
 	"context"
-	"time"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
@@ -36,19 +35,6 @@ func (p *PostgresDBService) createBlockMetricsTable(ctx context.Context, pool *p
 	_, err := pool.Exec(ctx, CREATE_BLOCK_ARRIVAL_TABLE)
 	if err != nil {
 		return errors.Wrap(err, "error creating score metrics table")
-	}
-	return nil
-}
-
-func (p *PostgresDBService) InsertNewBlock(slot int, label string, timestamp time.Time) error {
-
-	_, err := p.psqlPool.Exec(p.ctx, InsertNewBlock,
-		slot,
-		label,
-		timestamp)
-
-	if err != nil {
-		return errors.Wrap(err, "error inserting row in score metrics table")
 	}
 	return nil
 }

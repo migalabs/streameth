@@ -8,7 +8,6 @@ This file together with the model, has all the needed methods to interact with t
 
 import (
 	"context"
-	"time"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
@@ -20,9 +19,12 @@ var (
 			f_label VARCHAR(100),
 			f_slot INT,
 			f_committee_index INT,
-			f_val_idx INT,
-			f_timestamp TIME,
-			CONSTRAINT PK_Attestation PRIMARY KEY (f_label,f_slot,f_committee_index,f_val_idx));`
+			f_signature TEXT,
+			f_source_root TEXT,
+			f_target_root TEXT,
+			f_head_root TEXT,
+			f_timestamp TIMESTAMP,
+			CONSTRAINT PK_Attestation PRIMARY KEY (f_label,f_slot,f_committee_index,f_signature));`
 
 	InsertNewAtt = `
 		INSERT INTO t_att_metrics (	
@@ -30,10 +32,11 @@ var (
 			f_slot,
 			f_committee_index,
 			f_timestamp,
-			f_val_idx 
-		)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT DO NOTHING;`
+			f_signature,
+			f_source_root,
+			f_target_root,
+			f_head_root)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`
 )
 
 // in case the table did not exist
@@ -42,19 +45,6 @@ func (p *PostgresDBService) createAttMetricsTable(ctx context.Context, pool *pgx
 	_, err := pool.Exec(ctx, CreateAttTable)
 	if err != nil {
 		return errors.Wrap(err, "error creating attestation metrics table")
-	}
-	return nil
-}
-
-func (p *PostgresDBService) InsertNewAtt(slot int, label string, timestamp time.Time) error {
-
-	_, err := p.psqlPool.Exec(p.ctx, InsertNewAtt,
-		slot,
-		label,
-		timestamp)
-
-	if err != nil {
-		return errors.Wrap(err, "error inserting row in score metrics table")
 	}
 	return nil
 }
