@@ -82,7 +82,25 @@ func (b *ClientLiveData) ProcessNewBlock(slot phase0.Slot) error {
 	}
 	log.Infof("Block Generation Time: %f", blockTime)
 	log.Infof("Metrics: %+v", metrics)
-	b.DBClient.InsertNewScore(metrics)
+
+	// Store in DB
+	params := make([]interface{}, 0)
+	params = append(params, metrics.Label)
+	params = append(params, metrics.Score)
+	params = append(params, metrics.Duration)
+	params = append(params, metrics.CorrectSource)
+	params = append(params, metrics.CorrectTarget)
+	params = append(params, metrics.CorrectHead)
+	params = append(params, metrics.Sync1Bits)
+	params = append(params, metrics.AttNum)
+	params = append(params, metrics.NewVotes)
+
+	writeTask := postgresql.WriteTask{
+		QueryString: postgresql.InsertNewScore,
+		Params:      params,
+	}
+
+	b.DBClient.WriteChan <- writeTask
 
 	// We block the update attestations as new head could impact attestations of the proposed block
 	b.ProcessNewHead <- struct{}{} // Allow the new head to update attestations
