@@ -36,6 +36,11 @@ var AnalyzerCommand = &cli.Command{
 			Name:        "db-workers",
 			Usage:       "10",
 			DefaultText: "1",
+		},
+		&cli.StringFlag{
+			Name:        "metrics",
+			Usage:       "proposals,attestations",
+			DefaultText: "proposals,attestations",
 		}},
 }
 
@@ -43,6 +48,7 @@ var QueryTimeout = 90 * time.Second
 
 func LaunchBlockAnalyzer(c *cli.Context) error {
 	dbWorkers := 1
+	metrics := make([]string, 0)
 	logLauncher := log.WithField(
 		"module", "ScorerCommand",
 	)
@@ -65,6 +71,18 @@ func LaunchBlockAnalyzer(c *cli.Context) error {
 
 	if !c.IsSet("db-workers") {
 		logLauncher.Warnf("no database workers configured, default is 1")
+		metrics = append(metrics, "proposals")
+		metrics = append(metrics, "attestations")
+	} else {
+		metricsInput := strings.Split(c.String("metrics"), ",")
+
+		for _, item := range metricsInput {
+			metrics = append(metrics, item)
+		}
+	}
+
+	if !c.IsSet("metrics") {
+		logLauncher.Warnf("no metrics configured, measuring all")
 	} else {
 		dbWorkers = c.Int("db-workers")
 	}
@@ -72,7 +90,7 @@ func LaunchBlockAnalyzer(c *cli.Context) error {
 	bnEndpoints := strings.Split(c.String("bn-endpoints"), ",")
 	dbEndpoint := c.String("db-endpoint")
 
-	service, err := app.NewAppService(c.Context, bnEndpoints, dbEndpoint, dbWorkers)
+	service, err := app.NewAppService(c.Context, bnEndpoints, dbEndpoint, dbWorkers, metrics)
 	if err != nil {
 		log.Fatal("could not start app: %s", err.Error())
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/attestantio/go-eth2-client/spec/phase0"
@@ -18,6 +19,8 @@ var (
 	log     = logrus.WithField(
 		"module", modName,
 	)
+	attestationMetric = "attestations"
+	proposalMetric    = "proposals"
 )
 
 type AppService struct {
@@ -26,9 +29,10 @@ type AppService struct {
 	initTime  time.Time
 	ChainTime chain_stats.ChainTime
 	HeadSlot  phase0.Slot
+	Metrics   []string
 }
 
-func NewAppService(ctx context.Context, bnEndpoints []string, dbEndpooint string, dbWorkers int) (*AppService, error) {
+func NewAppService(ctx context.Context, bnEndpoints []string, dbEndpooint string, dbWorkers int, metrics []string) (*AppService, error) {
 
 	dbClient, err := postgresql.ConnectToDB(ctx, dbEndpooint, dbWorkers)
 
@@ -73,11 +77,45 @@ func NewAppService(ctx context.Context, bnEndpoints []string, dbEndpooint string
 		ChainTime: chain_stats.ChainTime{
 			GenesisTime: genesis,
 		},
+		Metrics: metrics,
 	}, nil
 }
 
 // Main routine: build block history and block proposals every 12 seconds
 func (s *AppService) Run() {
+	var wg sync.WaitGroup
+	for _, item := range s.Metrics {
+		if item == attestationMetric {
+			wg.Add(1)
+			s.RunAttestations()
+		}
+
+		if item == proposalMetric {
+			wg.Add(1)
+			go s.RunMainRoutine(&wg)
+		}
+	}
+
+	wg.Wait()
+
+}
+
+// Main routine: build block history and block proposals every 12 seconds
+func (s *AppService) RunAttestations() {
+
+	// Subscribe to events from each client
+	for _, item := range s.Analyzers {
+		err := item.Eth2Provider.Api.Events(s.ctx, []string{"attestation"}, item.HandleAttestationEvent) // every new head
+		if err != nil {
+			log.Panicf("failed to subscribe to head events: %s, label: %s", err, item.Eth2Provider.Label)
+		}
+
+	}
+}
+
+// Main routine: build block history and block proposals every 12 seconds
+func (s *AppService) RunMainRoutine(wg *sync.WaitGroup) {
+	defer wg.Done()
 	log = log.WithField("routine", "main")
 	historyBuilt := false
 
@@ -96,12 +134,6 @@ func (s *AppService) Run() {
 		err := item.Eth2Provider.Api.Events(s.ctx, []string{"head"}, item.HandleHeadEvent) // every new head
 		if err != nil {
 			log.Panicf("failed to subscribe to head events: %s, label: %s", err, item.Eth2Provider.Label)
-		}
-
-		// every new attestation
-		err = item.Eth2Provider.Api.Events(s.ctx, []string{"attestation"}, item.HandleAttestationEvent) // every new attestation
-		if err != nil {
-			log.Panicf("failed to subscribe to attestation events: %s, label: %s", err, item.Eth2Provider.Label)
 		}
 
 	}
