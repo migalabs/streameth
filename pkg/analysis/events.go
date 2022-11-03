@@ -27,7 +27,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 	if b.CurrentHeadSlot != 0 && // we are not at the beginning of the run
 		newBlock.Bellatrix.Message.Slot-phase0.Slot(b.CurrentHeadSlot) > 1 { // there a gap bigger than 1 with the new head
 		for i := b.CurrentHeadSlot; i < uint64(newBlock.Bellatrix.Message.Slot); i++ {
-			params := make([]interface{}, 2)
+			params := make([]interface{}, 0)
 			params = append(params, i)
 			params = append(params, b.Eth2Provider.Label)
 			writeTask := postgresql.WriteTask{
@@ -37,7 +37,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 			b.DBClient.WriteChan <- writeTask // store
 		}
 	}
-	params := make([]interface{}, 3)
+	params := make([]interface{}, 0)
 	params = append(params, int(data.Slot))
 	params = append(params, b.Eth2Provider.Label)
 	params = append(params, timestamp)
