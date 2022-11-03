@@ -9,6 +9,8 @@ import (
 	"github.com/prysmaticlabs/go-bitfield"
 )
 
+// This method receives a new head block and updates the attestation in the history
+// So, when a block is to be proposed, we can check the history to identify new votes
 func (b *ClientLiveData) UpdateAttestations(block bellatrix.BeaconBlock) {
 
 	for _, attestation := range block.Body.Attestations {
@@ -38,6 +40,8 @@ func (b *ClientLiveData) UpdateAttestations(block bellatrix.BeaconBlock) {
 
 }
 
+// This function is only called at the beginning of the run, so we build an initial attestation history
+// to judge new block proposals
 func (b *ClientLiveData) BuildHistory() bool {
 	log := b.log.WithField("routine", "history-build")
 	currentHead, err := b.Eth2Provider.Api.BeaconBlockHeader(b.ctx, "head")

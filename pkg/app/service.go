@@ -126,7 +126,7 @@ func (s *AppService) Run() {
 			log.Tracef("Time until next slot tick: %s", time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot+1))).String())
 			for _, analyzer := range s.Analyzers {
 				// for each beacon node, get a new block and analyze it
-				go analyzer.ProcessNewBlock(s.HeadSlot)
+				go analyzer.ProposeNewBlock(s.HeadSlot)
 			}
 
 		default:

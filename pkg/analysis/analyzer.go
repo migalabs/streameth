@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/jackc/pgx/v4"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/sirupsen/logrus"
 	"github.com/tdahar/block-scorer/pkg/analysis/additional_structs"
@@ -28,8 +27,8 @@ type ClientLiveData struct {
 	log              *logrus.Entry                                              // each analyzer has its own logger
 	ProcessNewHead   chan struct{}
 	DBClient         *postgresql.PostgresDBService
-	writeBatch       pgx.Batch
 	EpochData        additional_structs.EpochStructs
+	CurrentHeadSlot  uint64
 }
 
 func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, timeout time.Duration, dbClient *postgresql.PostgresDBService) (*ClientLiveData, error) {
@@ -45,20 +44,22 @@ func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, tim
 		AttHistory:       make(map[phase0.Slot]map[phase0.CommitteeIndex]bitfield.Bitlist),
 		BlockRootHistory: make(map[phase0.Slot]phase0.Root),
 		log:              log.WithField("label", label),
-		writeBatch:       pgx.Batch{},
 		EpochData:        additional_structs.NewEpochData(client.Api),
+		CurrentHeadSlot:  0,
 	}, nil
 }
 
 // Asks for a block proposal to the client and stores score in the database
-func (b *ClientLiveData) ProcessNewBlock(slot phase0.Slot) error {
+func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) error {
 	log := b.log.WithField("task", "generate-block")
 	log.Debugf("processing new block: %d\n", slot)
+
 	randaoReveal := phase0.BLSSignature{}
 	graffiti := []byte("")
 	snapshot := time.Now()
 	block, err := b.Eth2Provider.Api.BeaconBlockProposal(b.ctx, slot, randaoReveal, graffiti) // ask for block proposal
 	blockTime := time.Since(snapshot).Seconds()                                               // time to generate block
+
 	if err != nil {
 		return fmt.Errorf("error requesting block from %s: %s", b.Eth2Provider.Label, err)
 
