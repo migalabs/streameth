@@ -1,0 +1,4 @@
+[submodule "go-eth2-client"]
+	path = go-eth2-client
+	url = https://github.com/tdahar/go-eth2-client
+	branch = feature/skip-randao

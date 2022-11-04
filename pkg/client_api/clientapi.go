@@ -12,7 +12,7 @@ import (
 var (
 	moduleName = "API-Cli"
 	log        = logrus.WithField(
-		"module", "")
+		"module", moduleName)
 )
 
 type APIClient struct {
@@ -38,7 +38,12 @@ func NewAPIClient(ctx context.Context, label string, cliEndpoint string, timeout
 		log.Error("gernerating the http api client")
 	}
 	return &APIClient{
-		ctx: ctx,
-		Api: hc,
+		ctx:   ctx,
+		Api:   hc,
+		Label: label,
 	}, nil
+}
+
+func (p APIClient) String() string {
+	return p.Label + "->" + p.Api.Address()
 }

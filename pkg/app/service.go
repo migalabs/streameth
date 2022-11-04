@@ -4,68 +4,141 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/sirupsen/logrus"
-	"github.com/tdahar/block-scorer/pkg/chain_stats"
-	"github.com/tdahar/block-scorer/pkg/client_api"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/analysis"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/chain_stats"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/postgresql"
 )
 
 var (
-	modName = "App"
+	modName = "Main App"
 	log     = logrus.WithField(
 		"module", modName,
 	)
+	attestationMetric = "attestations"
+	proposalMetric    = "proposals"
 )
 
 type AppService struct {
 	ctx       context.Context
-	Clients   []*client_api.APIClient
+	Analyzers []*analysis.ClientLiveData
 	initTime  time.Time
 	ChainTime chain_stats.ChainTime
 	HeadSlot  phase0.Slot
+	Metrics   []string
 }
 
-func NewAppService(ctx context.Context, bnEndpoints []string) (*AppService, error) {
+func NewAppService(ctx context.Context, bnEndpoints []string, dbEndpooint string, dbWorkers int, metrics []string) (*AppService, error) {
 
-	clients := make([]*client_api.APIClient, 0)
+	dbClient, err := postgresql.ConnectToDB(ctx, dbEndpooint, dbWorkers)
+
+	if err != nil {
+		log.Panicf("could not connect to database: %s", err)
+	}
+
+	analyzers := make([]*analysis.ClientLiveData, 0) // one analyzer per beacon node
 
 	for i := range bnEndpoints {
+		// parse each beacon node endpoint
 		if !strings.Contains(bnEndpoints[i], "/") {
 			log.Errorf("incorrect format for endpoint: %s", bnEndpoints[i])
 		}
-		label := strings.Split(bnEndpoints[i], "/")[0]
+		// label := strings.Split(bnEndpoints[i], "/")[0]
 		endpoint := strings.Split(bnEndpoints[i], "/")[1]
-		newClient, err := client_api.NewAPIClient(ctx, label, endpoint, time.Second*5)
+		// newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, label, endpoint, time.Second*5)
+		newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, bnEndpoints[i], endpoint, time.Second*5, dbClient)
+
 		if err != nil {
 			log.Errorf("could not create client for endpoint: %s ", endpoint, err)
 			continue
 		}
-		clients = append(clients, newClient)
+		analyzers = append(analyzers, newAnalyzer)
 	}
-
-	genesis, err := clients[0].Api.GenesisTime(ctx)
+	// get genesis time to calculate each slot time
+	// Keep in mind first endpoint will be used as master
+	genesis, err := analyzers[0].Eth2Provider.Api.GenesisTime(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not obtain genesis time: %s", err)
 	}
-	headHeader, err := clients[0].Api.BeaconBlockHeader(ctx, "head")
+	// check the current chain head
+	headHeader, err := analyzers[0].Eth2Provider.Api.BeaconBlockHeader(ctx, "head")
 	if err != nil {
 		return nil, fmt.Errorf("could not obtain head block header: %s", err)
 	}
 	return &AppService{
-		ctx:      ctx,
-		Clients:  clients,
-		initTime: time.Now(),
-		HeadSlot: headHeader.Header.Message.Slot,
+		ctx:       ctx,
+		Analyzers: analyzers,
+		initTime:  time.Now(),
+		HeadSlot:  headHeader.Header.Message.Slot,
 		ChainTime: chain_stats.ChainTime{
 			GenesisTime: genesis,
 		},
+		Metrics: metrics,
 	}, nil
 }
 
+// Main routine: build block history and block proposals every 12 seconds
 func (s *AppService) Run() {
+	var wg sync.WaitGroup
+	for _, item := range s.Metrics {
+		if item == attestationMetric {
+			wg.Add(1)
+			s.RunAttestations()
+		}
 
+		if item == proposalMetric {
+			wg.Add(1)
+			go s.RunMainRoutine(&wg)
+		}
+	}
+
+	wg.Wait()
+
+}
+
+// Main routine: build block history and block proposals every 12 seconds
+func (s *AppService) RunAttestations() {
+
+	// Subscribe to events from each client
+	for _, item := range s.Analyzers {
+		err := item.Eth2Provider.Api.Events(s.ctx, []string{"attestation"}, item.HandleAttestationEvent) // every new head
+		if err != nil {
+			log.Panicf("failed to subscribe to head events: %s, label: %s", err, item.Eth2Provider.Label)
+		}
+
+	}
+}
+
+// Main routine: build block history and block proposals every 12 seconds
+func (s *AppService) RunMainRoutine(wg *sync.WaitGroup) {
+	defer wg.Done()
+	log = log.WithField("routine", "main")
+	historyBuilt := false
+
+	for !historyBuilt {
+		historyBuilt = true
+		for _, item := range s.Analyzers {
+			ok := item.BuildHistory()
+			if !ok {
+				historyBuilt = false
+			}
+		}
+	}
+
+	// Subscribe to events from each client
+	for _, item := range s.Analyzers {
+		err := item.Eth2Provider.Api.Events(s.ctx, []string{"head"}, item.HandleHeadEvent) // every new head
+		if err != nil {
+			log.Panicf("failed to subscribe to head events: %s, label: %s", err, item.Eth2Provider.Label)
+		}
+
+	}
+
+	// tick every slot start (12 seconds)
 	ticker := time.After(time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot + 1))))
 
 	for {
@@ -76,12 +149,18 @@ func (s *AppService) Run() {
 			return
 
 		case <-ticker:
-
+			// we entered a new slot time
 			s.HeadSlot++
 			log.Infof("Entered a new slot!: %d, time: %s", s.HeadSlot, time.Now())
+			// reset ticker to next slot
 			ticker = time.After(time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot + 1))))
 			// a new slot has begun, therefore execute all needed actions
-			log.Infof("Next Duration: %d", time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot+1))))
+			log.Tracef("Time until next slot tick: %s", time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot+1))).String())
+			for _, analyzer := range s.Analyzers {
+				// for each beacon node, get a new block and analyze it
+				go analyzer.ProposeNewBlock(s.HeadSlot)
+			}
+
 		default:
 		}
 	}
