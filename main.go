@@ -6,13 +6,13 @@ import (
 	"os"
 
 	"github.com/sirupsen/logrus"
-	"github.com/tdahar/block-scorer/pkg/cmd"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/cmd"
 	cli "github.com/urfave/cli/v2"
 )
 
 var (
 	Version = "v1.0.0"
-	CliName = "Eth2 Block Scorer"
+	CliName = "Eth CL Live Metrics"
 	log     = logrus.WithField(
 		"cli", "CliName",
 	)
@@ -22,12 +22,12 @@ func main() {
 	fmt.Println(CliName, Version)
 
 	// Set the general log configurations for the entire tool
-	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetLevel(logrus.InfoLevel)
 
 	app := &cli.App{
 		Name:      CliName,
 		Usage:     "Tinny client that requests and processes the Beacon Block proposals for each client.",
-		UsageText: "block-scorer [commands] [arguments...]",
+		UsageText: "live-metrics [commands] [arguments...]",
 		Authors: []*cli.Author{
 			{
 				Name:  "Tarun",

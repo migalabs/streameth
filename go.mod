@@ -1,4 +1,4 @@
-module github.com/tdahar/block-scorer
+module github.com/tdahar/eth-cl-live-metrics
 
 go 1.17
 

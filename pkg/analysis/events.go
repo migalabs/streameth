@@ -6,7 +6,7 @@ import (
 
 	api "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/tdahar/block-scorer/pkg/postgresql"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/postgresql"
 )
 
 func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {

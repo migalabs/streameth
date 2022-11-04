@@ -9,9 +9,9 @@ import (
 
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/sirupsen/logrus"
-	"github.com/tdahar/block-scorer/pkg/analysis"
-	"github.com/tdahar/block-scorer/pkg/chain_stats"
-	"github.com/tdahar/block-scorer/pkg/postgresql"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/analysis"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/chain_stats"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/postgresql"
 )
 
 var (

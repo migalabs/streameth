@@ -6,8 +6,8 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
-	"github.com/tdahar/block-scorer/pkg/postgresql"
-	"github.com/tdahar/block-scorer/pkg/utils"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/postgresql"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/utils"
 )
 
 const (

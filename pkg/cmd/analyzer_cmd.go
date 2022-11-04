@@ -7,14 +7,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
-	"github.com/tdahar/block-scorer/pkg/app"
-	"github.com/tdahar/block-scorer/pkg/utils"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/app"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/utils"
 	cli "github.com/urfave/cli/v2"
 )
 
 var AnalyzerCommand = &cli.Command{
-	Name:   "block-scorer",
-	Usage:  "Receive Block proposals from clients and evaluate score",
+	Name:   "live-metrics",
+	Usage:  "Receive Block proposals from clients and evaluate score, as well as other metrics",
 	Action: LaunchBlockAnalyzer,
 	Flags: []cli.Flag{
 		&cli.StringFlag{
