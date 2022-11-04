@@ -2,7 +2,6 @@ package analysis
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/attestantio/go-eth2-client/spec/phase0"
@@ -50,7 +49,7 @@ func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, tim
 }
 
 // Asks for a block proposal to the client and stores score in the database
-func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) error {
+func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 	log := b.log.WithField("task", "generate-block")
 	log.Debugf("processing new block: %d\n", slot)
 
@@ -61,7 +60,8 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) error {
 	blockTime := time.Since(snapshot).Seconds()                                               // time to generate block
 
 	if err != nil {
-		return fmt.Errorf("error requesting block from %s: %s", b.Eth2Provider.Label, err)
+		log.Errorf("error requesting block from %s: %s", b.Eth2Provider.Label, err)
+		return
 
 	}
 	for i := range b.AttHistory {
@@ -77,9 +77,10 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) error {
 	}
 
 	// for now we just have Bellatrix
-	metrics, err := b.BellatrixBlockMetrics(block.Bellatrix)
+	metrics, err := b.BellatrixBlockMetrics(block.Bellatrix, blockTime)
 	if err != nil {
-		return fmt.Errorf("error analyzing block from %s: %s", b.Eth2Provider.Label, err)
+		log.Errorf("error analyzing block from %s: %s", b.Eth2Provider.Label, err)
+		return
 	}
 	log.Infof("Block Generation Time: %f", blockTime)
 	log.Infof("Metrics: %+v", metrics)
@@ -106,5 +107,5 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) error {
 
 	// We block the update attestations as new head could impact attestations of the proposed block
 	b.ProcessNewHead <- struct{}{} // Allow the new head to update attestations
-	return nil
+	return
 }

@@ -18,7 +18,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 	}
 
 	data := event.Data.(*api.HeadEvent) // cast to head event
-	log.Debugf("Received a new head event: slot %d", data.Slot)
+	log.Tracef("Received a new head event: slot %d", data.Slot)
 
 	// we only receive the block hash, get the new block
 	newBlock, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, hex.EncodeToString(data.Block[:]))
@@ -63,7 +63,7 @@ func (b *ClientLiveData) HandleAttestationEvent(event *api.Event) {
 	timestamp := time.Now()
 
 	log := b.log.WithField("routine", "attestation-event")
-	log.Debugf("Received a new event")
+	log.Tracef("Received a new event")
 
 	if event.Data == nil {
 		log.Errorf("attestation event does not contain anything")
@@ -112,6 +112,6 @@ func (b *ClientLiveData) HandleAttestationEvent(event *api.Event) {
 
 	b.DBClient.WriteChan <- writeTask // send task to be written
 
-	log.Debugf("Finished processing event in %f seconds", time.Since(timestamp).Seconds())
+	log.Tracef("Finished processing event in %f seconds", time.Since(timestamp).Seconds())
 
 }
