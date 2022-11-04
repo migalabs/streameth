@@ -10,8 +10,6 @@ require (
 	github.com/urfave/cli/v2 v2.16.3
 )
 
-require github.com/jackc/pgx v3.6.2+incompatible // indirect
-
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/fatih/color v1.13.0 // indirect

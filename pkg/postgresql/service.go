@@ -123,7 +123,7 @@ func (p *PostgresDBService) runWriters() {
 			for {
 
 				if p.endProcess >= 1 && len(p.WriteChan) == 0 {
-					wlogWriter.Info("finish detected, closing persister")
+					wlogWriter.Warnf("finish detected, closing persister")
 					break loop
 				}
 
@@ -133,7 +133,7 @@ func (p *PostgresDBService) runWriters() {
 					writeBatch.Queue(task.QueryString, task.Params...)
 
 					if writeBatch.Len() > MAX_BATCH_QUEUE {
-						wlogWriter.Debugf("Writing batch to database")
+						wlogWriter.Tracef("Writing batch to database")
 						err := p.ExecuteBatch(writeBatch)
 						if err != nil {
 							wlogWriter.Errorf("Error processing batch", err.Error())
@@ -178,8 +178,7 @@ func (p PostgresDBService) ExecuteBatch(batch pgx_v4.Batch) error {
 		rows, qerr = batchResults.Query()
 		rows.Close()
 	}
-	// p.MonitorStruct.AddDBWrite(time.Since(snapshot).Seconds())
-	log.Debugf("Batch process time: %f, batch size: %d", time.Since(snapshot).Seconds(), batch.Len())
+	log.Tracef("Batch process time: %f, batch size: %d", time.Since(snapshot).Seconds(), batch.Len())
 
 	return tx.Commit(p.ctx)
 
