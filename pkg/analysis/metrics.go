@@ -86,18 +86,21 @@ func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock, dur
 	totalScore = attScore + syncCommitteeScore + attesterSlashingScore + proposerSlashingScore
 
 	return postgresql.BlockMetricsModel{
-		Slot:              int(block.Slot),
-		Label:             b.Eth2Provider.Label,
-		CorrectSource:     totalCorrectSource,
-		CorrectTarget:     totalCorrectTarget,
-		CorrectHead:       totalCorrectHead,
-		Score:             float64(totalScore),
-		Duration:          duration,
-		NewVotes:          totalNewVotes,
-		AttNum:            len(block.Body.Attestations),
-		Sync1Bits:         int(block.Body.SyncAggregate.SyncCommitteeBits.Count()),
-		AttesterSlashings: len(block.Body.AttesterSlashings),
-		ProposerSlashings: len(block.Body.ProposerSlashings),
+		Slot:                  int(block.Slot),
+		Label:                 b.Eth2Provider.Label,
+		CorrectSource:         totalCorrectSource,
+		CorrectTarget:         totalCorrectTarget,
+		CorrectHead:           totalCorrectHead,
+		Score:                 float64(totalScore),
+		Duration:              duration,
+		NewVotes:              totalNewVotes,
+		AttNum:                len(block.Body.Attestations),
+		Sync1Bits:             int(block.Body.SyncAggregate.SyncCommitteeBits.Count()),
+		AttesterSlashings:     len(block.Body.AttesterSlashings),
+		ProposerSlashings:     len(block.Body.ProposerSlashings),
+		ProposerSlashingScore: proposerSlashingScore,
+		AttesterSlashingScore: attScore,
+		SyncScore:             syncCommitteeScore,
 	}, nil
 }
 

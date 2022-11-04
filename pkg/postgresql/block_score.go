@@ -54,16 +54,19 @@ func (p *PostgresDBService) createScoreMetricsTable(ctx context.Context, pool *p
 }
 
 type BlockMetricsModel struct {
-	Slot              int
-	Label             string
-	Score             float64
-	Duration          float64
-	CorrectSource     int
-	CorrectTarget     int
-	CorrectHead       int
-	Sync1Bits         int
-	AttNum            int
-	NewVotes          int
-	AttesterSlashings int
-	ProposerSlashings int
+	Slot                  int
+	Label                 string
+	Score                 float64
+	Duration              float64
+	CorrectSource         int
+	CorrectTarget         int
+	CorrectHead           int
+	Sync1Bits             int
+	AttNum                int
+	NewVotes              int
+	AttesterSlashings     int
+	ProposerSlashings     int
+	ProposerSlashingScore float64
+	AttesterSlashingScore float64
+	SyncScore             float64
 }
