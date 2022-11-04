@@ -24,8 +24,8 @@ const (
 func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock, duration float64) (postgresql.BlockMetricsModel, error) {
 	// log := b.log.WithField("task", "bellatrix-block-score") // add extra log for function
 	totalNewVotes := 0
-	totalScore := 0
-	attScore := 0
+	totalScore := float64(0)
+	attScore := float64(0)
 	totalCorrectSource := 0
 	totalCorrectTarget := 0
 	totalCorrectHead := 0
@@ -75,7 +75,7 @@ func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock, dur
 
 		totalNewVotes += newVotes
 		// denominator := (WEIGHT_DENOMINATOR - PROPOSER_WEIGHT) * WEIGHT_DENOMINATOR / PROPOSER_WEIGHT
-		attScore += score / WEIGHT_DENOMINATOR
+		attScore += float64(score) / float64(WEIGHT_DENOMINATOR)
 
 	}
 
@@ -83,7 +83,7 @@ func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock, dur
 
 	attesterSlashingScore, proposerSlashingScore := scoreSlashings(block.Body.AttesterSlashings, block.Body.ProposerSlashings)
 
-	totalScore = attScore + int(syncCommitteeScore) + int(attesterSlashingScore) + int(proposerSlashingScore)
+	totalScore = attScore + syncCommitteeScore + attesterSlashingScore + proposerSlashingScore
 
 	return postgresql.BlockMetricsModel{
 		Slot:              int(block.Slot),
