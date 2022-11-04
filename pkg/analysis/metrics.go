@@ -21,7 +21,7 @@ const (
 
 // https://github.com/attestantio/vouch/blob/0c75ee8315dc4e5df85eb2aa09b4acc2b4436661/strategies/beaconblockproposal/best/score.go#L222
 // This function receives a new block proposal and ouputs a block score and metrics about the block
-func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock) (postgresql.BlockMetricsModel, error) {
+func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock, duration float64) (postgresql.BlockMetricsModel, error) {
 	// log := b.log.WithField("task", "bellatrix-block-score") // add extra log for function
 	totalNewVotes := 0
 	totalScore := 0
@@ -92,6 +92,7 @@ func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock) (po
 		CorrectTarget:     totalCorrectTarget,
 		CorrectHead:       totalCorrectHead,
 		Score:             float64(totalScore),
+		Duration:          duration,
 		NewVotes:          totalNewVotes,
 		AttNum:            len(block.Body.Attestations),
 		Sync1Bits:         int(block.Body.SyncAggregate.SyncCommitteeBits.Count()),

@@ -77,7 +77,7 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) error {
 	}
 
 	// for now we just have Bellatrix
-	metrics, err := b.BellatrixBlockMetrics(block.Bellatrix)
+	metrics, err := b.BellatrixBlockMetrics(block.Bellatrix, blockTime)
 	if err != nil {
 		return fmt.Errorf("error analyzing block from %s: %s", b.Eth2Provider.Label, err)
 	}
