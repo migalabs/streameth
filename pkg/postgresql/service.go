@@ -139,6 +139,8 @@ func (p *PostgresDBService) runWriters() {
 							wlogWriter.Errorf("Error processing batch", err.Error())
 						}
 						writeBatch = pgx_v4.Batch{}
+					} else {
+						log.Tracef("%d pending tasks to persist", MAX_BATCH_QUEUE-writeBatch.Len())
 					}
 
 				case <-p.ctx.Done():
@@ -178,6 +180,10 @@ func (p PostgresDBService) ExecuteBatch(batch pgx_v4.Batch) error {
 		rows, qerr = batchResults.Query()
 		rows.Close()
 	}
+	if qerr.Error() != "no result" {
+		log.Errorf(qerr.Error())
+	}
+
 	log.Tracef("Batch process time: %f, batch size: %d", time.Since(snapshot).Seconds(), batch.Len())
 
 	return tx.Commit(p.ctx)
