@@ -99,7 +99,7 @@ func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock, dur
 		AttesterSlashings:     len(block.Body.AttesterSlashings),
 		ProposerSlashings:     len(block.Body.ProposerSlashings),
 		ProposerSlashingScore: proposerSlashingScore,
-		AttesterSlashingScore: attScore,
+		AttesterSlashingScore: attesterSlashingScore,
 		SyncScore:             syncCommitteeScore,
 	}, nil
 }
