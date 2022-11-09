@@ -97,6 +97,11 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 	params = append(params, metrics.Sync1Bits)
 	params = append(params, metrics.AttNum)
 	params = append(params, metrics.NewVotes)
+	params = append(params, metrics.AttesterSlashings)
+	params = append(params, metrics.ProposerSlashings)
+	params = append(params, metrics.ProposerSlashingScore)
+	params = append(params, metrics.AttesterSlashingScore)
+	params = append(params, metrics.SyncScore)
 
 	writeTask := postgresql.WriteTask{
 		QueryString: postgresql.InsertNewScore,

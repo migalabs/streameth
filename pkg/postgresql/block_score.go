@@ -26,6 +26,11 @@ var (
 			f_sync_bits INT,
 			f_att_num INT,
 			f_new_votes INT,
+			f_attester_slashings INT,
+			f_proposer_slashings INT,
+			f_proposer_slashing_score FLOAT,
+			f_attester_slashing_score FLOAT,
+			f_sync_score FLOAT,
 			CONSTRAINT PK_Score PRIMARY KEY (f_slot,f_label));`
 
 	InsertNewScore = `
@@ -39,8 +44,13 @@ var (
 			f_correct_head,
 			f_sync_bits,
 			f_att_num,
-			f_new_votes)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);`
+			f_new_votes,
+			f_attester_slashings,
+			f_proposer_slashings,
+			f_proposer_slashing_score,
+			f_attester_slashing_score,
+			f_sync_score)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);`
 )
 
 // in case the table did not exist
@@ -54,16 +64,19 @@ func (p *PostgresDBService) createScoreMetricsTable(ctx context.Context, pool *p
 }
 
 type BlockMetricsModel struct {
-	Slot              int
-	Label             string
-	Score             float64
-	Duration          float64
-	CorrectSource     int
-	CorrectTarget     int
-	CorrectHead       int
-	Sync1Bits         int
-	AttNum            int
-	NewVotes          int
-	AttesterSlashings int
-	ProposerSlashings int
+	Slot                  int
+	Label                 string
+	Score                 float64
+	Duration              float64
+	CorrectSource         int
+	CorrectTarget         int
+	CorrectHead           int
+	Sync1Bits             int
+	AttNum                int
+	NewVotes              int
+	AttesterSlashings     int
+	ProposerSlashings     int
+	ProposerSlashingScore float64
+	AttesterSlashingScore float64
+	SyncScore             float64
 }
