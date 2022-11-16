@@ -22,6 +22,7 @@ var (
 	)
 	attestationMetric = "attestations"
 	proposalMetric    = "proposals"
+	reorgMetric       = "reorgs"
 )
 
 type AppService struct {
@@ -110,6 +111,11 @@ func (s *AppService) Run() {
 			s.RunAttestations()
 		}
 
+		if item == reorgMetric {
+			wg.Add(1)
+			s.RunReOrgs()
+		}
+
 		if item == proposalMetric {
 			log.Infof("initiating block proposal monitoring")
 			wg.Add(1)
@@ -129,6 +135,19 @@ func (s *AppService) RunAttestations() {
 		err := item.Eth2Provider.Api.Events(s.ctx, []string{"attestation"}, item.HandleAttestationEvent) // every new head
 		if err != nil {
 			log.Panicf("failed to subscribe to head events: %s, label: %s", err, item.Eth2Provider.Label)
+		}
+
+	}
+}
+
+// Main routine: build block history and block proposals every 12 seconds
+func (s *AppService) RunReOrgs() {
+
+	// Subscribe to events from each client
+	for _, item := range s.Analyzers {
+		err := item.Eth2Provider.Api.Events(s.ctx, []string{"chain_reorg"}, item.HandleAttestationEvent) // every new head
+		if err != nil {
+			log.Panicf("failed to subscribe to reorg events: %s, label: %s", err, item.Eth2Provider.Label)
 		}
 
 	}
