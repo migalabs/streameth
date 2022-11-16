@@ -18,7 +18,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 	}
 
 	data := event.Data.(*api.HeadEvent) // cast to head event
-	log.Tracef("Received a new head event: slot %d", data.Slot)
+	log.Debugf("Received a new event: slot %d", data.Slot)
 
 	// we only receive the block hash, get the new block
 	newBlock, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, hex.EncodeToString(data.Block[:]))
@@ -63,13 +63,13 @@ func (b *ClientLiveData) HandleAttestationEvent(event *api.Event) {
 	timestamp := time.Now()
 
 	log := b.log.WithField("routine", "attestation-event")
-	log.Tracef("Received a new event")
 
 	if event.Data == nil {
 		log.Errorf("attestation event does not contain anything")
 	}
 
 	data := event.Data.(*phase0.Attestation) // cast
+	log.Debugf("Received a new event: %s", data.Signature)
 	// With the beacon committee we can identify the attesting validators
 	// Will not track this for now
 	// beaconCommittee := b.EpochData.GetBeaconCommittee(uint64(data.Data.Slot), uint64(data.Data.Index))
@@ -113,5 +113,33 @@ func (b *ClientLiveData) HandleAttestationEvent(event *api.Event) {
 	b.DBClient.WriteChan <- writeTask // send task to be written
 
 	log.Tracef("Finished processing event in %f seconds", time.Since(timestamp).Seconds())
+
+}
+
+func (b *ClientLiveData) HandleReOrgEvent(event *api.Event) {
+	timestamp := time.Now()
+	log := b.log.WithField("routine", "reorg-event")
+
+	if event.Data == nil {
+		return
+	}
+
+	data := event.Data.(*api.ChainReorgEvent) // cast to head event
+	log.Debugf("New Reorg Evenet")
+
+	baseParams := make([]interface{}, 0)
+	baseParams = append(baseParams, b.Eth2Provider.Label)
+	baseParams = append(baseParams, uint64(data.Slot))
+	baseParams = append(baseParams, hex.EncodeToString(data.OldHeadBlock[:]))
+	baseParams = append(baseParams, hex.EncodeToString(data.NewHeadBlock[:]))
+	baseParams = append(baseParams, uint64(data.Depth))
+	baseParams = append(baseParams, timestamp)
+
+	writeTask := postgresql.WriteTask{
+		QueryString: postgresql.InsertNewReorg,
+		Params:      baseParams,
+	}
+
+	b.DBClient.WriteChan <- writeTask // send task to be written
 
 }
