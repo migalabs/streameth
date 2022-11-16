@@ -69,7 +69,7 @@ func (b *ClientLiveData) HandleAttestationEvent(event *api.Event) {
 	}
 
 	data := event.Data.(*phase0.Attestation) // cast
-	log.Debugf("Received a new event: %s", data.Signature)
+	log.Debugf("Received a new event: slot %d, committee: %d", uint64(data.Data.Slot), uint64(data.Data.Index))
 	// With the beacon committee we can identify the attesting validators
 	// Will not track this for now
 	// beaconCommittee := b.EpochData.GetBeaconCommittee(uint64(data.Data.Slot), uint64(data.Data.Index))
