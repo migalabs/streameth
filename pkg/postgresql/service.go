@@ -35,11 +35,12 @@ type PostgresDBService struct {
 	endProcess       int32
 	FinishSignalChan chan struct{}
 	workerNum        int
+	maxBatchQueue    int
 }
 
 // Connect to the PostgreSQL Database and get the multithread-proof connection
 // from the given url-composed credentials
-func ConnectToDB(ctx context.Context, url string, workerNum int) (*PostgresDBService, error) {
+func ConnectToDB(ctx context.Context, url string, workerNum int, batchLen int) (*PostgresDBService, error) {
 	mainCtx, cancel := context.WithCancel(ctx)
 	// spliting the url to don't share any confidential information on logs
 
@@ -65,6 +66,7 @@ func ConnectToDB(ctx context.Context, url string, workerNum int) (*PostgresDBSer
 		endProcess:       0,
 		FinishSignalChan: make(chan struct{}, 1),
 		workerNum:        workerNum,
+		maxBatchQueue:    batchLen,
 	}
 	// init the psql db
 	err = psqlDB.init(ctx, psqlDB.psqlPool)
@@ -132,7 +134,7 @@ func (p *PostgresDBService) runWriters() {
 					wlogWriter.Tracef("Received new write task")
 					writeBatch.Queue(task.QueryString, task.Params...)
 
-					if writeBatch.Len() > MAX_BATCH_QUEUE {
+					if writeBatch.Len() > p.maxBatchQueue {
 						wlogWriter.Tracef("Writing batch to database")
 						err := p.ExecuteBatch(writeBatch)
 						if err != nil {

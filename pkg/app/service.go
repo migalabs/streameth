@@ -32,9 +32,20 @@ type AppService struct {
 	Metrics   []string
 }
 
-func NewAppService(ctx context.Context, bnEndpoints []string, dbEndpooint string, dbWorkers int, metrics []string) (*AppService, error) {
+func NewAppService(ctx context.Context,
+	bnEndpoints []string,
+	dbEndpooint string,
+	dbWorkers int,
+	metrics []string) (*AppService, error) {
 
-	dbClient, err := postgresql.ConnectToDB(ctx, dbEndpooint, dbWorkers)
+	batchLen := len(bnEndpoints)
+	for _, item := range metrics {
+		if item == attestationMetric {
+			batchLen = 100
+		}
+	}
+
+	dbClient, err := postgresql.ConnectToDB(ctx, dbEndpooint, dbWorkers, batchLen)
 
 	if err != nil {
 		log.Panicf("could not connect to database: %s", err)
