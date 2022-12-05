@@ -166,7 +166,7 @@ loop:
 
 		if s.finishTasks > 0 {
 			log.Infof("closing main routine")
-			s.Analyzers[0].DBClient.DoneTasks() // all the analyzers have the same db client
+			s.DBClient.DoneTasks() // all the analyzers have the same db client
 			break loop
 		}
 		select {
