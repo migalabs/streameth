@@ -35,11 +35,13 @@ type PostgresDBService struct {
 	endProcess       int32
 	FinishSignalChan chan struct{}
 	workerNum        int
+	maxBatchQueue    int
+	WgDBWriter       sync.WaitGroup
 }
 
 // Connect to the PostgreSQL Database and get the multithread-proof connection
 // from the given url-composed credentials
-func ConnectToDB(ctx context.Context, url string, workerNum int) (*PostgresDBService, error) {
+func ConnectToDB(ctx context.Context, url string, workerNum int, batchLen int) (*PostgresDBService, error) {
 	mainCtx, cancel := context.WithCancel(ctx)
 	// spliting the url to don't share any confidential information on logs
 
@@ -65,6 +67,8 @@ func ConnectToDB(ctx context.Context, url string, workerNum int) (*PostgresDBSer
 		endProcess:       0,
 		FinishSignalChan: make(chan struct{}, 1),
 		workerNum:        workerNum,
+		maxBatchQueue:    batchLen,
+		WgDBWriter:       sync.WaitGroup{},
 	}
 	// init the psql db
 	err = psqlDB.init(ctx, psqlDB.psqlPool)
@@ -73,10 +77,6 @@ func ConnectToDB(ctx context.Context, url string, workerNum int) (*PostgresDBSer
 	}
 	go psqlDB.runWriters()
 	return psqlDB, err
-}
-
-// Close the connection with the PostgreSQL
-func (p *PostgresDBService) Close() {
 }
 
 func (p *PostgresDBService) init(ctx context.Context, pool *pgxpool.Pool) error {
@@ -110,13 +110,12 @@ func (p *PostgresDBService) DoneTasks() {
 }
 
 func (p *PostgresDBService) runWriters() {
-	var wgDBWriters sync.WaitGroup
 	log.Info("Launching Beacon State Writers")
 	log.Infof("Launching %d Beacon State Writers", p.workerNum)
 	for i := 0; i < p.workerNum; i++ {
-		wgDBWriters.Add(1)
+		p.WgDBWriter.Add(1)
 		go func(dbWriterID int) {
-			defer wgDBWriters.Done()
+			defer p.WgDBWriter.Done()
 			wlogWriter := log.WithField("DBWriter", dbWriterID)
 			writeBatch := pgx_v4.Batch{}
 		loop:
@@ -132,7 +131,7 @@ func (p *PostgresDBService) runWriters() {
 					wlogWriter.Tracef("Received new write task")
 					writeBatch.Queue(task.QueryString, task.Params...)
 
-					if writeBatch.Len() > MAX_BATCH_QUEUE {
+					if writeBatch.Len() > p.maxBatchQueue {
 						wlogWriter.Tracef("Writing batch to database")
 						err := p.ExecuteBatch(writeBatch)
 						if err != nil {
@@ -155,8 +154,13 @@ func (p *PostgresDBService) runWriters() {
 		}(i)
 	}
 
-	wgDBWriters.Wait()
+	p.WgDBWriter.Wait()
+	p.Close()
 
+}
+
+func (p PostgresDBService) Close() {
+	p.psqlPool.Close()
 }
 
 type WriteTask struct {
