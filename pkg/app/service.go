@@ -86,11 +86,13 @@ func (s *AppService) Run() {
 	var wg sync.WaitGroup
 	for _, item := range s.Metrics {
 		if item == attestationMetric {
+			log.Infof("initiating attestation events monitoring")
 			wg.Add(1)
 			s.RunAttestations()
 		}
 
 		if item == proposalMetric {
+			log.Infof("initiating block proposal monitoring")
 			wg.Add(1)
 			go s.RunMainRoutine(&wg)
 		}
