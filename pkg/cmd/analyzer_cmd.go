@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -94,7 +97,27 @@ func LaunchBlockAnalyzer(c *cli.Context) error {
 	if err != nil {
 		log.Fatal("could not start app: %s", err.Error())
 	}
-	service.Run()
+
+	procDoneC := make(chan struct{})
+	sigtermC := make(chan os.Signal)
+
+	signal.Notify(sigtermC, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		service.Run()
+		procDoneC <- struct{}{}
+	}()
+
+	select {
+	case <-sigtermC:
+		logLauncher.Info("Sudden shutdown detected, controlled shutdown of the cli triggered")
+		service.Close()
+
+	case <-procDoneC:
+		logLauncher.Info("Process successfully finish!")
+	}
+	close(sigtermC)
+	close(procDoneC)
 
 	return nil
 }

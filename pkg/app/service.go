@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/attestantio/go-eth2-client/spec/phase0"
@@ -24,20 +25,24 @@ var (
 )
 
 type AppService struct {
-	ctx       context.Context
-	Analyzers []*analysis.ClientLiveData
-	initTime  time.Time
-	ChainTime chain_stats.ChainTime
-	HeadSlot  phase0.Slot
-	Metrics   []string
+	ctx         context.Context
+	cancel      context.CancelFunc
+	Analyzers   []*analysis.ClientLiveData
+	initTime    time.Time
+	ChainTime   chain_stats.ChainTime
+	HeadSlot    phase0.Slot
+	Metrics     []string
+	finishTasks int32
+	DBClient    *postgresql.PostgresDBService
 }
 
-func NewAppService(ctx context.Context,
+func NewAppService(pCtx context.Context,
 	bnEndpoints []string,
 	dbEndpooint string,
 	dbWorkers int,
 	metrics []string) (*AppService, error) {
 
+	ctx, cancel := context.WithCancel(pCtx)
 	batchLen := len(bnEndpoints)
 	for _, item := range metrics {
 		if item == attestationMetric {
@@ -82,18 +87,21 @@ func NewAppService(ctx context.Context,
 	}
 	return &AppService{
 		ctx:       ctx,
+		cancel:    cancel,
 		Analyzers: analyzers,
 		initTime:  time.Now(),
 		HeadSlot:  headHeader.Header.Message.Slot,
 		ChainTime: chain_stats.ChainTime{
 			GenesisTime: genesis,
 		},
-		Metrics: metrics,
+		Metrics:  metrics,
+		DBClient: dbClient,
 	}, nil
 }
 
 // Main routine: build block history and block proposals every 12 seconds
 func (s *AppService) Run() {
+	defer s.cancel()
 	var wg sync.WaitGroup
 	for _, item := range s.Metrics {
 		if item == attestationMetric {
@@ -153,13 +161,19 @@ func (s *AppService) RunMainRoutine(wg *sync.WaitGroup) {
 
 	// tick every slot start (12 seconds)
 	ticker := time.After(time.Until(s.ChainTime.SlotTime(phase0.Slot(s.HeadSlot + 1))))
-
+loop:
 	for {
 
+		if s.finishTasks > 0 {
+			log.Infof("closing main routine")
+			s.Analyzers[0].DBClient.DoneTasks() // all the analyzers have the same db client
+			break loop
+		}
 		select {
 		case <-s.ctx.Done():
-
-			return
+			log.Infof("closing main routine")
+			s.DBClient.DoneTasks() // all the analyzers have the same db client
+			break loop
 
 		case <-ticker:
 			// we entered a new slot time
@@ -177,4 +191,12 @@ func (s *AppService) RunMainRoutine(wg *sync.WaitGroup) {
 		default:
 		}
 	}
+	log.Infof("finished")
+}
+
+func (s *AppService) Close() {
+	log.Info("Sudden closed detected, closing Live Metrics")
+	atomic.AddInt32(&s.finishTasks, int32(1))
+	s.DBClient.WgDBWriter.Wait()
+	s.cancel()
 }
