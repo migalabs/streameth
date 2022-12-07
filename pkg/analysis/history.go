@@ -12,6 +12,7 @@ import (
 // This method receives a new head block and updates the attestation in the history
 // So, when a block is to be proposed, we can check the history to identify new votes
 func (b *ClientLiveData) UpdateAttestations(block bellatrix.BeaconBlock) {
+	log.Tracef("updating attestations for block: %d", block.Slot)
 
 	for _, attestation := range block.Body.Attestations {
 		slot := attestation.Data.Slot
