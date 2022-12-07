@@ -24,7 +24,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 	newBlock, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, hex.EncodeToString(data.Block[:]))
 
 	if newBlock == nil {
-		log.Errorf("the block is not available")
+		log.Errorf("the block is not available: %d", data.Slot)
 		return
 	}
 	if err != nil || newBlock == nil {
