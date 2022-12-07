@@ -37,6 +37,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 			b.DBClient.WriteChan <- writeTask // store
 		}
 	}
+	b.CurrentHeadSlot = uint64(newBlock.Bellatrix.Message.Slot)
 	params := make([]interface{}, 0)
 	params = append(params, int(data.Slot))
 	params = append(params, b.Eth2Provider.Label)
