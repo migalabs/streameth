@@ -23,6 +23,14 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 	// we only receive the block hash, get the new block
 	newBlock, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, hex.EncodeToString(data.Block[:]))
 
+	if newBlock == nil {
+		log.Errorf("the block is not available")
+		return
+	}
+	if err != nil || newBlock == nil {
+		log.Errorf("could not request new block: %s", err)
+		return
+	}
 	// Track if there is any missing slot
 	if b.CurrentHeadSlot != 0 && // we are not at the beginning of the run
 		newBlock.Bellatrix.Message.Slot-phase0.Slot(b.CurrentHeadSlot) > 1 { // there a gap bigger than 1 with the new head
