@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/tdahar/eth-cl-live-metrics/pkg/analysis"
 	"github.com/tdahar/eth-cl-live-metrics/pkg/chain_stats"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/exporter"
 	"github.com/tdahar/eth-cl-live-metrics/pkg/postgresql"
 )
 
@@ -26,15 +27,16 @@ var (
 )
 
 type AppService struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
-	Analyzers   []*analysis.ClientLiveData
-	initTime    time.Time
-	ChainTime   chain_stats.ChainTime
-	HeadSlot    phase0.Slot
-	Metrics     []string
-	finishTasks int32
-	DBClient    *postgresql.PostgresDBService
+	ctx             context.Context
+	cancel          context.CancelFunc
+	Analyzers       []*analysis.ClientLiveData
+	initTime        time.Time
+	ChainTime       chain_stats.ChainTime
+	HeadSlot        phase0.Slot
+	Metrics         []string
+	finishTasks     int32
+	DBClient        *postgresql.PostgresDBService
+	ExporterService exporter.ExporterService
 }
 
 func NewAppService(pCtx context.Context,

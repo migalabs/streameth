@@ -28,6 +28,7 @@ type ClientLiveData struct {
 	DBClient         *postgresql.PostgresDBService
 	EpochData        additional_structs.EpochStructs
 	CurrentHeadSlot  uint64
+	Monitoring       MonitoringMetrics
 }
 
 func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, timeout time.Duration, dbClient *postgresql.PostgresDBService) (*ClientLiveData, error) {
@@ -46,6 +47,7 @@ func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, tim
 		EpochData:        additional_structs.NewEpochData(client.Api),
 		CurrentHeadSlot:  0,
 		ProcessNewHead:   make(chan struct{}),
+		Monitoring:       MonitoringMetrics{},
 	}, nil
 }
 
@@ -79,13 +81,16 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 	}
 	if err != nil {
 		log.Errorf("error requesting block from %s: %s", b.Eth2Provider.Label, err)
+		b.Monitoring.ProposalStatus = 0
 
 	} else {
 		// for now we just have Bellatrix
 		newMetrics, err := b.BellatrixBlockMetrics(block.Bellatrix, blockTime)
 		if err != nil {
 			log.Errorf("error analyzing block from %s: %s", b.Eth2Provider.Label, err)
+			b.Monitoring.ProposalStatus = 0
 		} else {
+			b.Monitoring.ProposalStatus = 1
 			metrics = newMetrics
 			log.Infof("Block Generation Time: %f", blockTime)
 			log.Infof("Metrics: %+v", metrics)
@@ -115,9 +120,14 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 		QueryString: postgresql.InsertNewScore,
 		Params:      params,
 	}
+	b.Monitoring.ProposalStatus = 1
 
 	b.DBClient.WriteChan <- writeTask
 
 	// We block the update attestations as new head could impact attestations of the proposed block
 	// b.ProcessNewHead <- struct{}{} // Allow the new head to update attestations
+}
+
+type MonitoringMetrics struct {
+	ProposalStatus int
 }
