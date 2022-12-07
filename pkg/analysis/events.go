@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	api "github.com/attestantio/go-eth2-client/api/v1"
@@ -18,15 +19,15 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 	}
 
 	data := event.Data.(*api.HeadEvent) // cast to head event
-	log.Debugf("Received a new event: slot %d", data.Slot)
+	log.Infof("Received a new event: slot %d", data.Slot)
 
 	// we only receive the block hash, get the new block
-	newBlock, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, hex.EncodeToString(data.Block[:]))
+	newBlock, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, fmt.Sprintf("%#x", data.Block))
 
 	// Track if there is any missing slot
 	if b.CurrentHeadSlot != 0 && // we are not at the beginning of the run
-		newBlock.Bellatrix.Message.Slot-phase0.Slot(b.CurrentHeadSlot) > 1 { // there a gap bigger than 1 with the new head
-		for i := b.CurrentHeadSlot; i < uint64(newBlock.Bellatrix.Message.Slot); i++ {
+		data.Slot-phase0.Slot(b.CurrentHeadSlot) > 1 { // there a gap bigger than 1 with the new head
+		for i := b.CurrentHeadSlot + 1; i < uint64(data.Slot); i++ {
 			params := make([]interface{}, 0)
 			params = append(params, i)
 			params = append(params, b.Eth2Provider.Label)
