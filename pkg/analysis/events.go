@@ -25,7 +25,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 	// Track if there is any missing slot
 	if b.CurrentHeadSlot != 0 && // we are not at the beginning of the run
 		data.Slot-phase0.Slot(b.CurrentHeadSlot) > 1 { // there a gap bigger than 1 with the new head
-		for i := b.CurrentHeadSlot; i < uint64(data.Slot); i++ {
+		for i := b.CurrentHeadSlot + 1; i < uint64(data.Slot); i++ {
 			params := make([]interface{}, 0)
 			params = append(params, i)
 			params = append(params, b.Eth2Provider.Label)
