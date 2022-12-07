@@ -112,5 +112,4 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 
 	// We block the update attestations as new head could impact attestations of the proposed block
 	b.ProcessNewHead <- struct{}{} // Allow the new head to update attestations
-	return
 }

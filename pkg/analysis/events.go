@@ -17,6 +17,10 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 		return
 	}
 
+	// wait for the block proposal to be processed, otherwise the attestations could get mixed
+	// with the proposal
+	<-b.ProcessNewHead
+
 	data := event.Data.(*api.HeadEvent) // cast to head event
 	log.Debugf("Received a new event: slot %d", data.Slot)
 
@@ -31,10 +35,11 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 		log.Errorf("could not request new block: %s", err)
 		return
 	}
+	// At this point we have a new block
 	// Track if there is any missing slot
 	if b.CurrentHeadSlot != 0 && // we are not at the beginning of the run
-		newBlock.Bellatrix.Message.Slot-phase0.Slot(b.CurrentHeadSlot) > 1 { // there a gap bigger than 1 with the new head
-		for i := b.CurrentHeadSlot; i < uint64(newBlock.Bellatrix.Message.Slot); i++ {
+		data.Slot-phase0.Slot(b.CurrentHeadSlot) > 1 { // there a gap bigger than 1 with the new head
+		for i := b.CurrentHeadSlot; i < uint64(data.Slot); i++ {
 			params := make([]interface{}, 0)
 			params = append(params, i)
 			params = append(params, b.Eth2Provider.Label)
@@ -45,7 +50,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 			b.DBClient.WriteChan <- writeTask // store
 		}
 	}
-	b.CurrentHeadSlot = uint64(newBlock.Bellatrix.Message.Slot)
+	b.CurrentHeadSlot = uint64(data.Slot)
 	params := make([]interface{}, 0)
 	params = append(params, int(data.Slot))
 	params = append(params, b.Eth2Provider.Label)
@@ -56,9 +61,6 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 	}
 	b.DBClient.WriteChan <- writeTask // store
 
-	// wait for the block proposal to be processed, otherwise the attestations could get mixed
-	// with the proposal
-	<-b.ProcessNewHead
 	b.UpdateAttestations(*newBlock.Bellatrix.Message) // now update the attestations with the new head block in the chain
 
 	if err != nil {
