@@ -20,9 +20,18 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 
 	data := event.Data.(*api.HeadEvent) // cast to head event
 	log.Infof("Received a new event: slot %d", data.Slot)
-
+	<-b.ProcessNewHead // wait for the block proposal to be done
 	// we only receive the block hash, get the new block
 	newBlock, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, fmt.Sprintf("%#x", data.Block))
+
+	if newBlock == nil {
+		log.Errorf("the block is not available: %d", data.Slot)
+		return
+	}
+	if err != nil || newBlock == nil {
+		log.Errorf("could not request new block: %s", err)
+		return
+	}
 
 	// Track if there is any missing slot
 	if b.CurrentHeadSlot != 0 && // we are not at the beginning of the run
@@ -38,6 +47,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 			b.DBClient.WriteChan <- writeTask // store
 		}
 	}
+	b.CurrentHeadSlot = uint64(data.Slot)
 	params := make([]interface{}, 0)
 	params = append(params, int(data.Slot))
 	params = append(params, b.Eth2Provider.Label)
@@ -50,12 +60,8 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 
 	// wait for the block proposal to be processed, otherwise the attestations could get mixed
 	// with the proposal
-	<-b.ProcessNewHead
-	b.UpdateAttestations(*newBlock.Bellatrix.Message) // now update the attestations with the new head block in the chain
 
-	if err != nil {
-		log.Errorf("could not retrieve the head block: %s", err)
-	}
+	b.UpdateAttestations(*newBlock.Bellatrix.Message) // now update the attestations with the new head block in the chain
 
 }
 
