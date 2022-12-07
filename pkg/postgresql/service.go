@@ -136,7 +136,7 @@ func (p *PostgresDBService) runWriters() {
 					wlogWriter.Tracef("Received new write task")
 					writeBatch.Queue(task.QueryString, task.Params...)
 
-					if writeBatch.Len() > p.maxBatchQueue {
+					if writeBatch.Len() >= p.maxBatchQueue {
 						wlogWriter.Tracef("Writing batch to database")
 						err := p.ExecuteBatch(writeBatch)
 						if err != nil {
@@ -144,7 +144,7 @@ func (p *PostgresDBService) runWriters() {
 						}
 						writeBatch = pgx_v4.Batch{}
 					} else {
-						log.Tracef("%d pending tasks to persist", MAX_BATCH_QUEUE-writeBatch.Len())
+						log.Tracef("%d pending tasks to persist", p.maxBatchQueue-writeBatch.Len())
 					}
 
 				case <-p.ctx.Done():
