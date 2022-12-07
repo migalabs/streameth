@@ -45,6 +45,7 @@ func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, tim
 		log:              log.WithField("label", label),
 		EpochData:        additional_structs.NewEpochData(client.Api),
 		CurrentHeadSlot:  0,
+		ProcessNewHead:   make(chan struct{}),
 	}, nil
 }
 
