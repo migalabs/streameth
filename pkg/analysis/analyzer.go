@@ -59,11 +59,6 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 	block, err := b.Eth2Provider.Api.BeaconBlockProposal(b.ctx, slot, randaoReveal, graffiti) // ask for block proposal
 	blockTime := time.Since(snapshot).Seconds()                                               // time to generate block
 
-	if err != nil {
-		log.Errorf("error requesting block from %s: %s", b.Eth2Provider.Label, err)
-		return
-
-	}
 	for i := range b.AttHistory {
 		if i+32 < slot { // attestations can only reference 32 slots back
 			delete(b.AttHistory, i) // remove old entries from the map
@@ -76,14 +71,24 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 		}
 	}
 
-	// for now we just have Bellatrix
-	metrics, err := b.BellatrixBlockMetrics(block.Bellatrix, blockTime)
-	if err != nil {
-		log.Errorf("error analyzing block from %s: %s", b.Eth2Provider.Label, err)
-		return
+	metrics := postgresql.BlockMetricsModel{
+		Slot:  int(slot),
+		Label: b.Eth2Provider.Label,
+		Score: -1,
 	}
-	log.Infof("Block Generation Time: %f", blockTime)
-	log.Infof("Metrics: %+v", metrics)
+	if err != nil {
+		log.Errorf("error requesting block from %s: %s", b.Eth2Provider.Label, err)
+
+	} else {
+		// for now we just have Bellatrix
+		metrics, err := b.BellatrixBlockMetrics(block.Bellatrix, blockTime)
+		if err != nil {
+			log.Errorf("error analyzing block from %s: %s", b.Eth2Provider.Label, err)
+			return
+		}
+		log.Infof("Block Generation Time: %f", blockTime)
+		log.Infof("Metrics: %+v", metrics)
+	}
 
 	// Store in DB
 	params := make([]interface{}, 0)
@@ -112,5 +117,4 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 
 	// We block the update attestations as new head could impact attestations of the proposed block
 	b.ProcessNewHead <- struct{}{} // Allow the new head to update attestations
-	return
 }
