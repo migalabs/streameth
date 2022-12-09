@@ -33,15 +33,17 @@ func (s *AppService) initClientsPrometheusMetrics() {
 	prometheus.MustRegister(ProposalsUp)
 }
 func (s *AppService) runClientsPrometheusMetrics() {
+	log := log.WithField("routine", "prometheus-metrics")
 	ticker := time.NewTicker(exporter.MetricLoopInterval)
 	// routine to loop
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
-
+				log.Infof("prometheus summary:")
 				for _, item := range s.Analyzers {
 					ProposalsUp.WithLabelValues(item.Eth2Provider.Label).Set(float64(item.Monitoring.ProposalStatus))
+					log.Infof("Endpoint: %s, status: %d", item.Eth2Provider.Label, item.Monitoring.ProposalStatus)
 				}
 
 			case <-s.ctx.Done():
