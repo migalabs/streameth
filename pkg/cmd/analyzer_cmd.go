@@ -95,9 +95,9 @@ func LaunchBlockAnalyzer(c *cli.Context) error {
 	dbEndpoint := c.String("db-endpoint")
 
 	exportService := exporter.NewExporterService(c.Context)
-	go exportService.Run()
+	exportService.Run()
 
-	service, err := app.NewAppService(c.Context, bnEndpoints, dbEndpoint, dbWorkers, metrics)
+	service, err := app.NewAppService(c.Context, bnEndpoints, dbEndpoint, dbWorkers, metrics, exportService)
 	if err != nil {
 		log.Fatal("could not start app: %s", err.Error())
 	}
