@@ -8,9 +8,9 @@ import (
 var (
 	ProposalsUp = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "clients",
-		Name:      "proposals-up",
+		Name:      "proposals_up",
 		Help:      "Block Proposals up",
 	},
-		[]string{"controlclients"},
+		[]string{"controldist"},
 	)
 )
