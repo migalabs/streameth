@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	NewExporterCheckInterval = 2 * time.Minute
+	NewExporterCheckInterval = 15 * time.Second
 	ModuleName               = "EXPORTER"
 	log                      = logrus.WithField(
 		"module", ModuleName,
