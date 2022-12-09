@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	api "github.com/attestantio/go-eth2-client/api/v1"
@@ -18,15 +19,25 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 	}
 
 	data := event.Data.(*api.HeadEvent) // cast to head event
-	log.Tracef("Received a new head event: slot %d", data.Slot)
-
+	log.Infof("Received a new event: slot %d", data.Slot)
+	// <-b.ProcessNewHead // wait for the block proposal to be done
 	// we only receive the block hash, get the new block
-	newBlock, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, hex.EncodeToString(data.Block[:]))
+	newBlock, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, fmt.Sprintf("%#x", data.Block))
+
+	if newBlock == nil {
+		log.Errorf("the block is not available: %d", data.Slot)
+		return
+	}
+	if err != nil || newBlock == nil {
+		log.Errorf("could not request new block: %s", err)
+		return
+	}
+	b.UpdateAttestations(*newBlock.Bellatrix.Message) // now update the attestations with the new head block in the chain
 
 	// Track if there is any missing slot
 	if b.CurrentHeadSlot != 0 && // we are not at the beginning of the run
-		newBlock.Bellatrix.Message.Slot-phase0.Slot(b.CurrentHeadSlot) > 1 { // there a gap bigger than 1 with the new head
-		for i := b.CurrentHeadSlot; i < uint64(newBlock.Bellatrix.Message.Slot); i++ {
+		data.Slot-phase0.Slot(b.CurrentHeadSlot) > 1 { // there a gap bigger than 1 with the new head
+		for i := b.CurrentHeadSlot + 1; i < uint64(data.Slot); i++ {
 			params := make([]interface{}, 0)
 			params = append(params, i)
 			params = append(params, b.Eth2Provider.Label)
@@ -37,6 +48,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 			b.DBClient.WriteChan <- writeTask // store
 		}
 	}
+	b.CurrentHeadSlot = uint64(data.Slot)
 	params := make([]interface{}, 0)
 	params = append(params, int(data.Slot))
 	params = append(params, b.Eth2Provider.Label)
@@ -49,12 +61,6 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 
 	// wait for the block proposal to be processed, otherwise the attestations could get mixed
 	// with the proposal
-	<-b.ProcessNewHead
-	b.UpdateAttestations(*newBlock.Bellatrix.Message) // now update the attestations with the new head block in the chain
-
-	if err != nil {
-		log.Errorf("could not retrieve the head block: %s", err)
-	}
 
 }
 
@@ -63,13 +69,13 @@ func (b *ClientLiveData) HandleAttestationEvent(event *api.Event) {
 	timestamp := time.Now()
 
 	log := b.log.WithField("routine", "attestation-event")
-	log.Tracef("Received a new event")
 
 	if event.Data == nil {
 		log.Errorf("attestation event does not contain anything")
 	}
 
 	data := event.Data.(*phase0.Attestation) // cast
+	log.Debugf("Received a new event: slot %d, committee: %d", uint64(data.Data.Slot), uint64(data.Data.Index))
 	// With the beacon committee we can identify the attesting validators
 	// Will not track this for now
 	// beaconCommittee := b.EpochData.GetBeaconCommittee(uint64(data.Data.Slot), uint64(data.Data.Index))
@@ -113,5 +119,33 @@ func (b *ClientLiveData) HandleAttestationEvent(event *api.Event) {
 	b.DBClient.WriteChan <- writeTask // send task to be written
 
 	log.Tracef("Finished processing event in %f seconds", time.Since(timestamp).Seconds())
+
+}
+
+func (b *ClientLiveData) HandleReOrgEvent(event *api.Event) {
+	timestamp := time.Now()
+	log := b.log.WithField("routine", "reorg-event")
+
+	if event.Data == nil {
+		return
+	}
+
+	data := event.Data.(*api.ChainReorgEvent) // cast to head event
+	log.Debugf("New Reorg Evenet")
+
+	baseParams := make([]interface{}, 0)
+	baseParams = append(baseParams, b.Eth2Provider.Label)
+	baseParams = append(baseParams, uint64(data.Slot))
+	baseParams = append(baseParams, hex.EncodeToString(data.OldHeadBlock[:]))
+	baseParams = append(baseParams, hex.EncodeToString(data.NewHeadBlock[:]))
+	baseParams = append(baseParams, uint64(data.Depth))
+	baseParams = append(baseParams, timestamp)
+
+	writeTask := postgresql.WriteTask{
+		QueryString: postgresql.InsertNewReorg,
+		Params:      baseParams,
+	}
+
+	b.DBClient.WriteChan <- writeTask // send task to be written
 
 }
