@@ -82,13 +82,15 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 
 	} else {
 		// for now we just have Bellatrix
-		metrics, err = b.BellatrixBlockMetrics(block.Bellatrix, blockTime)
+		newMetrics, err := b.BellatrixBlockMetrics(block.Bellatrix, blockTime)
 		if err != nil {
 			log.Errorf("error analyzing block from %s: %s", b.Eth2Provider.Label, err)
-			return
+		} else {
+			metrics = newMetrics
+			log.Infof("Block Generation Time: %f", blockTime)
+			log.Infof("Metrics: %+v", metrics)
 		}
-		log.Infof("Block Generation Time: %f", blockTime)
-		log.Infof("Metrics: %+v", metrics)
+
 	}
 
 	// Store in DB
