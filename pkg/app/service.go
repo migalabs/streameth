@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/tdahar/eth-cl-live-metrics/pkg/analysis"
 	"github.com/tdahar/eth-cl-live-metrics/pkg/chain_stats"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/exporter"
 	"github.com/tdahar/eth-cl-live-metrics/pkg/postgresql"
 )
 
@@ -26,22 +27,24 @@ var (
 )
 
 type AppService struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
-	Analyzers   []*analysis.ClientLiveData
-	initTime    time.Time
-	ChainTime   chain_stats.ChainTime
-	HeadSlot    phase0.Slot
-	Metrics     []string
-	finishTasks int32
-	DBClient    *postgresql.PostgresDBService
+	ctx             context.Context
+	cancel          context.CancelFunc
+	Analyzers       []*analysis.ClientLiveData
+	initTime        time.Time
+	ChainTime       chain_stats.ChainTime
+	HeadSlot        phase0.Slot
+	Metrics         []string
+	finishTasks     int32
+	DBClient        *postgresql.PostgresDBService
+	ExporterService *exporter.ExporterService
 }
 
 func NewAppService(pCtx context.Context,
 	bnEndpoints []string,
 	dbEndpooint string,
 	dbWorkers int,
-	metrics []string) (*AppService, error) {
+	metrics []string,
+	exporterService *exporter.ExporterService) (*AppService, error) {
 
 	ctx, cancel := context.WithCancel(pCtx)
 	batchLen := len(bnEndpoints)
@@ -95,13 +98,17 @@ func NewAppService(pCtx context.Context,
 		ChainTime: chain_stats.ChainTime{
 			GenesisTime: genesis,
 		},
-		Metrics:  metrics,
-		DBClient: dbClient,
+		Metrics:         metrics,
+		DBClient:        dbClient,
+		ExporterService: exporterService,
 	}, nil
 }
 
 // Main routine: build block history and block proposals every 12 seconds
 func (s *AppService) Run() {
+
+	s.ServeMetrics()
+
 	defer s.cancel()
 	var wg sync.WaitGroup
 	for _, item := range s.Metrics {

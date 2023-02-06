@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/tdahar/eth-cl-live-metrics/pkg/app"
+	"github.com/tdahar/eth-cl-live-metrics/pkg/exporter"
 	"github.com/tdahar/eth-cl-live-metrics/pkg/utils"
 	cli "github.com/urfave/cli/v2"
 )
@@ -93,7 +94,10 @@ func LaunchBlockAnalyzer(c *cli.Context) error {
 	bnEndpoints := strings.Split(c.String("bn-endpoints"), ",")
 	dbEndpoint := c.String("db-endpoint")
 
-	service, err := app.NewAppService(c.Context, bnEndpoints, dbEndpoint, dbWorkers, metrics)
+	exportService := exporter.NewExporterService(c.Context)
+	exportService.Run()
+
+	service, err := app.NewAppService(c.Context, bnEndpoints, dbEndpoint, dbWorkers, metrics, exportService)
 	if err != nil {
 		log.Fatal("could not start app: %s", err.Error())
 	}
