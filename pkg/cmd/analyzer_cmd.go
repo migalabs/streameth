@@ -27,14 +27,12 @@ var AnalyzerCommand = &cli.Command{
 			DefaultText: "info",
 		},
 		&cli.StringFlag{
-			Name:        "bn-endpoints",
-			Usage:       "beacon node endpoints (label/endpoint,label/endpoint)",
-			DefaultText: "lh/localhost:5052",
+			Name:  "bn-endpoints",
+			Usage: "beacon node endpoints (label/endpoint,label/endpoint)",
 		},
 		&cli.StringFlag{
-			Name:        "db-endpoint",
-			Usage:       "postgresql database endpoint: postgresql://user:password@localhost:5432/beaconchain",
-			DefaultText: "lh/localhost:5052",
+			Name:  "db-endpoint",
+			Usage: "postgresql database endpoint: postgresql://user:password@localhost:5432/beaconchain",
 		},
 		&cli.StringFlag{
 			Name:        "db-workers",
