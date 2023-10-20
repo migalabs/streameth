@@ -1,4 +1,4 @@
-# eth-cl-live-metrics
+# StreamEth
 Tool to ask for blocks from the Ethereum CL clients and evaluate block score.
 It also has the capability to track some extra metrics from the Beacon Node, such as attestation reception.
 
@@ -17,7 +17,7 @@ This tool has been tested on `go1.17.2 linux/amd64`
 ```
 
 USAGE:
-   Eth CL Live Metrics live-metrics [command options] [arguments...]
+   live-metrics [command options] [arguments...]
 
 OPTIONS:
    --bn-endpoints value  beacon node endpoints (label/endpoint,label/endpoint)
@@ -26,6 +26,8 @@ OPTIONS:
    --log-level value     info,debug,warn (default: info)
    --metrics value       proposals,attestations (default: proposals,attestations)
 ```
+
+Please bear in mind the attestations metrics will increase the database size a lot
 
 
 # Metrics
