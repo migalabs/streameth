@@ -16,6 +16,10 @@ import (
 	cli "github.com/urfave/cli/v2"
 )
 
+const (
+	DefaultBlocksDir = "./proposal_blocks_data"
+)
+
 var AnalyzerCommand = &cli.Command{
 	Name:   "live-metrics",
 	Usage:  "Receive Block proposals from clients and evaluate score, as well as other metrics",
@@ -43,6 +47,11 @@ var AnalyzerCommand = &cli.Command{
 			Name:        "metrics",
 			Usage:       "proposals,attestations",
 			DefaultText: "proposals,attestations",
+		},
+		&cli.StringFlag{
+			Name:        "blocks-dir",
+			Usage:       "Folder where to store proposal blocks by label",
+			DefaultText: DefaultBlocksDir,
 		}},
 }
 
@@ -50,6 +59,7 @@ var QueryTimeout = 90 * time.Second
 
 func LaunchBlockAnalyzer(c *cli.Context) error {
 	dbWorkers := 1
+	blocksDir := DefaultBlocksDir
 	metrics := make([]string, 0)
 	logLauncher := log.WithField(
 		"module", "ScorerCommand",
@@ -89,13 +99,19 @@ func LaunchBlockAnalyzer(c *cli.Context) error {
 		dbWorkers = c.Int("db-workers")
 	}
 
+	if !c.IsSet("blocks-dir") {
+		logLauncher.Warnf("no blocks dir configured, defaulting to ./proposal_blocks_data")
+	} else {
+		blocksDir = c.String("blocks-dir")
+	}
+
 	bnEndpoints := strings.Split(c.String("bn-endpoints"), ",")
 	dbEndpoint := c.String("db-endpoint")
 
 	exportService := exporter.NewExporterService(c.Context)
 	exportService.Run()
 
-	service, err := app.NewAppService(c.Context, bnEndpoints, dbEndpoint, dbWorkers, metrics, exportService)
+	service, err := app.NewAppService(c.Context, bnEndpoints, dbEndpoint, dbWorkers, metrics, exportService, blocksDir)
 	if err != nil {
 		log.Fatal("could not start app: %s", err.Error())
 	}

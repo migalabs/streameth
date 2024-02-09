@@ -45,7 +45,8 @@ func NewAppService(pCtx context.Context,
 	dbEndpooint string,
 	dbWorkers int,
 	metrics []string,
-	exporterService *exporter.ExporterService) (*AppService, error) {
+	exporterService *exporter.ExporterService,
+	blocksDir string) (*AppService, error) {
 
 	ctx, cancel := context.WithCancel(pCtx)
 	batchLen := len(bnEndpoints)
@@ -72,7 +73,7 @@ func NewAppService(pCtx context.Context,
 		label := strings.Split(bnEndpoints[i], "/")[1]
 		endpoint := strings.Split(bnEndpoints[i], "/")[2]
 		// newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, label, endpoint, time.Second*5)
-		newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, client, label, endpoint, time.Second*5, dbClient)
+		newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, client, label, endpoint, time.Second*5, dbClient, blocksDir)
 
 		if err != nil {
 			log.Errorf("could not create client for endpoint: %s ", endpoint, err)
