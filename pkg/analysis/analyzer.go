@@ -151,6 +151,7 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 	// Store in DB
 	params := make([]interface{}, 0)
 	params = append(params, metrics.Slot)
+	params = append(params, metrics.ClientName)
 	params = append(params, metrics.Label)
 	params = append(params, metrics.Score)
 	params = append(params, metrics.Duration)
@@ -182,7 +183,7 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 	// b.ProcessNewHead <- struct{}{} // Allow the new head to update attestations
 }
 
-func (b ClientLiveData) GetLabel() string {
+func (b *ClientLiveData) GetLabel() string {
 	return b.label
 }
 
