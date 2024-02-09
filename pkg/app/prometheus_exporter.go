@@ -3,8 +3,8 @@ package app
 import (
 	"time"
 
+	"github.com/migalabs/streameth/pkg/exporter"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/exporter"
 )
 
 // ServeMetrics:

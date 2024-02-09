@@ -3,11 +3,11 @@ package analysis
 import (
 	"sort"
 
-	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/migalabs/streameth/pkg/postgresql"
+	"github.com/migalabs/streameth/pkg/utils"
 	"github.com/prysmaticlabs/go-bitfield"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/postgresql"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/utils"
 )
 
 const (
@@ -21,16 +21,28 @@ const (
 
 // https://github.com/attestantio/vouch/blob/0c75ee8315dc4e5df85eb2aa09b4acc2b4436661/strategies/beaconblockproposal/best/score.go#L222
 // This function receives a new block proposal and ouputs a block score and metrics about the block
-func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock, duration float64) (postgresql.BlockMetricsModel, error) {
+func (b *ClientLiveData) BlockMetrics(block *api.VersionedProposal, duration float64) (postgresql.BlockMetricsModel, error) {
 	// log := b.log.WithField("task", "bellatrix-block-score") // add extra log for function
+
 	totalNewVotes := 0
 	totalScore := float64(0)
 	attScore := float64(0)
 	totalCorrectSource := 0
 	totalCorrectTarget := 0
 	totalCorrectHead := 0
+	slot, err := block.Slot()
+
+	if err != nil {
+		log.Errorf("could not get block slot from block proposal: %s", err)
+	}
+
+	blockBody, err := utils.BlockBodyFromProposal(*block)
+	if err != nil {
+		log.Errorf("could not get block body from block proposal: %s", err)
+	}
+
 	attested := make(map[phase0.Slot]map[phase0.CommitteeIndex]bitfield.Bitlist) // for current block
-	for _, attestation := range block.Body.Attestations {
+	for _, attestation := range blockBody.Attestations {
 		newVotes := 0
 		slot := attestation.Data.Slot
 
@@ -64,7 +76,7 @@ func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock, dur
 			score += newVotes * TIMELY_SOURCE_WEIGHT
 			totalCorrectSource += newVotes
 		}
-		if utils.IsCorrectTarget(*attestation, *block, b.BlockRootHistory) {
+		if utils.IsCorrectTarget(*attestation, b.BlockRootHistory) {
 			score += newVotes * TIMELY_TARGET_WEIGHT
 			totalCorrectTarget += newVotes
 		}
@@ -79,14 +91,14 @@ func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock, dur
 
 	}
 
-	syncCommitteeScore := float64(block.Body.SyncAggregate.SyncCommitteeBits.Count()) * float64(SYNC_REWARD_WEIGHT) / float64(WEIGHT_DENOMINATOR)
+	syncCommitteeScore := float64(blockBody.SyncAggregate.SyncCommitteeBits.Count()) * float64(SYNC_REWARD_WEIGHT) / float64(WEIGHT_DENOMINATOR)
 
-	attesterSlashingScore, proposerSlashingScore := scoreSlashings(block.Body.AttesterSlashings, block.Body.ProposerSlashings)
+	attesterSlashingScore, proposerSlashingScore := scoreSlashings(blockBody.AttesterSlashings, blockBody.ProposerSlashings)
 
 	totalScore = attScore + syncCommitteeScore + attesterSlashingScore + proposerSlashingScore
 
 	return postgresql.BlockMetricsModel{
-		Slot:                  int(block.Slot),
+		Slot:                  int(slot),
 		Label:                 b.Eth2Provider.Label,
 		CorrectSource:         totalCorrectSource,
 		CorrectTarget:         totalCorrectTarget,
@@ -94,10 +106,10 @@ func (b *ClientLiveData) BellatrixBlockMetrics(block *bellatrix.BeaconBlock, dur
 		Score:                 float64(totalScore),
 		Duration:              duration,
 		NewVotes:              totalNewVotes,
-		AttNum:                len(block.Body.Attestations),
-		Sync1Bits:             int(block.Body.SyncAggregate.SyncCommitteeBits.Count()),
-		AttesterSlashings:     len(block.Body.AttesterSlashings),
-		ProposerSlashings:     len(block.Body.ProposerSlashings),
+		AttNum:                len(blockBody.Attestations),
+		Sync1Bits:             int(blockBody.SyncAggregate.SyncCommitteeBits.Count()),
+		AttesterSlashings:     len(blockBody.AttesterSlashings),
+		ProposerSlashings:     len(blockBody.ProposerSlashings),
 		ProposerSlashingScore: proposerSlashingScore,
 		AttesterSlashingScore: attesterSlashingScore,
 		SyncScore:             syncCommitteeScore,
