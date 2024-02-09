@@ -73,13 +73,18 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 	log := b.log.WithField("task", "generate-block")
 	log.Debugf("processing new block: %d\n", slot)
 
+	// Infinity randao always required
 	randaoReveal := phase0.BLSSignature{}
+	bs, err := hex.DecodeString(utils.InfinityRandaoReveal)
+	if err == nil {
+		copy(randaoReveal[:], bs)
+	}
+	skipRandaoVerification := false // only needed for Lighthouse, Nimbus and Grandine
 
-	if b.client == utils.LighthouseClient {
-		bs, err := hex.DecodeString(utils.InfinityRandaoReveal)
-		if err == nil {
-			copy(randaoReveal[:], bs)
-		}
+	if b.client == utils.LighthouseClient ||
+		b.client == utils.NimbusClient ||
+		b.client == utils.GrandineClient {
+		skipRandaoVerification = true
 	}
 
 	graffiti := make([]byte, 32)
@@ -88,7 +93,7 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 		Slot:                   slot,
 		RandaoReveal:           randaoReveal,
 		Graffiti:               ([32]byte)(graffiti),
-		SkipRandaoVerification: true,
+		SkipRandaoVerification: skipRandaoVerification,
 	}
 	block, err := b.Eth2Provider.Api.Proposal(b.ctx, &proposalOpts) // ask for block proposal
 	blockTime := time.Since(snapshot).Seconds()                     // time to generate block
