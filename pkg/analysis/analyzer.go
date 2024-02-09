@@ -21,6 +21,7 @@ var (
 		"module", moduleName)
 )
 
+// TODO: make attributes private where possible
 type ClientLiveData struct {
 	ctx              context.Context
 	Eth2Provider     client_api.APIClient                                       // connection to the beacon node
@@ -33,6 +34,7 @@ type ClientLiveData struct {
 	CurrentHeadSlot  uint64
 	Monitoring       MonitoringMetrics
 	client           string
+	blocksDir        string
 }
 
 func NewBlockAnalyzer(
@@ -41,7 +43,8 @@ func NewBlockAnalyzer(
 	label string,
 	cliEndpoint string,
 	timeout time.Duration,
-	dbClient *postgresql.PostgresDBService) (*ClientLiveData, error) {
+	dbClient *postgresql.PostgresDBService,
+	blocksDir string) (*ClientLiveData, error) {
 	client, err := client_api.NewAPIClient(ctx, label, cliEndpoint, timeout)
 	if err != nil {
 		log.Errorf("could not create eth2 client: %s", err)
@@ -65,6 +68,7 @@ func NewBlockAnalyzer(
 		ProcessNewHead:   make(chan struct{}),
 		Monitoring:       MonitoringMetrics{},
 		client:           clientName,
+		blocksDir:        blocksDir,
 	}, nil
 }
 
@@ -72,6 +76,18 @@ func NewBlockAnalyzer(
 func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 	log := b.log.WithField("task", "generate-block")
 	log.Debugf("processing new block: %d\n", slot)
+
+	for i := range b.AttHistory { // TODO: 32 must be a constant
+		if i+32 < slot { // attestations can only reference 32 slots back
+			delete(b.AttHistory, i) // remove old entries from the map
+		}
+	}
+
+	for i := range b.BlockRootHistory { // TODO: 64 must be a constant
+		if i+64 < slot { // attestations can only reference 32 slots back
+			delete(b.BlockRootHistory, i) // remove old entries from the map
+		}
+	}
 
 	// Infinity randao always required
 	randaoReveal := phase0.BLSSignature{}
@@ -87,27 +103,13 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 		skipRandaoVerification = true
 	}
 
-	graffiti := make([]byte, 32)
-	snapshot := time.Now()
+	graffiti := make([]byte, 32) // TODO: 32 must be a constant
+
 	proposalOpts := api.ProposalOpts{
 		Slot:                   slot,
 		RandaoReveal:           randaoReveal,
 		Graffiti:               ([32]byte)(graffiti),
 		SkipRandaoVerification: skipRandaoVerification,
-	}
-	block, err := b.Eth2Provider.Api.Proposal(b.ctx, &proposalOpts) // ask for block proposal
-	blockTime := time.Since(snapshot).Seconds()                     // time to generate block
-
-	for i := range b.AttHistory {
-		if i+32 < slot { // attestations can only reference 32 slots back
-			delete(b.AttHistory, i) // remove old entries from the map
-		}
-	}
-
-	for i := range b.BlockRootHistory {
-		if i+64 < slot { // attestations can only reference 32 slots back
-			delete(b.BlockRootHistory, i) // remove old entries from the map
-		}
 	}
 
 	metrics := postgresql.BlockMetricsModel{
@@ -115,6 +117,11 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 		Label: b.Eth2Provider.Label,
 		Score: -1,
 	}
+
+	snapshot := time.Now()
+	block, err := b.Eth2Provider.Api.Proposal(b.ctx, &proposalOpts) // ask for block proposal
+	blockTime := time.Since(snapshot).Seconds()                     // time to generate block
+
 	if err != nil {
 		log.Errorf("error requesting block from %s: %s", b.Eth2Provider.Label, err)
 		b.Monitoring.ProposalStatus = 0
@@ -160,6 +167,10 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 	b.Monitoring.ProposalStatus = 1
 
 	b.DBClient.WriteChan <- writeTask
+
+	if block != nil {
+		b.PersistBlock(*block.Data)
+	}
 
 	// We block the update attestations as new head could impact attestations of the proposed block
 	// b.ProcessNewHead <- struct{}{} // Allow the new head to update attestations

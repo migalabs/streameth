@@ -6,6 +6,7 @@ const (
 	TekuClient       = "Teku"
 	NimbusClient     = "Nimbus"
 	LodestarClient   = "Lodestar"
+	GrandineClient   = "Grandine"
 )
 
 func CheckValidClientName(name string) bool {
