@@ -3,6 +3,7 @@ package analysis
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/attestantio/go-eth2-client/api"
@@ -44,7 +45,7 @@ func NewBlockAnalyzer(
 	cliEndpoint string,
 	timeout time.Duration,
 	dbClient *postgresql.PostgresDBService,
-	blocksDir string) (*ClientLiveData, error) {
+	blocksBaseDir string) (*ClientLiveData, error) {
 	client, err := client_api.NewAPIClient(ctx, label, cliEndpoint, timeout)
 	if err != nil {
 		log.Errorf("could not create eth2 client: %s", err)
@@ -56,7 +57,7 @@ func NewBlockAnalyzer(
 		return &ClientLiveData{}, nil
 	}
 
-	return &ClientLiveData{
+	analyzer := &ClientLiveData{
 		ctx:              ctx,
 		Eth2Provider:     *client,
 		DBClient:         dbClient,
@@ -68,8 +69,11 @@ func NewBlockAnalyzer(
 		ProcessNewHead:   make(chan struct{}),
 		Monitoring:       MonitoringMetrics{},
 		client:           clientName,
-		blocksDir:        blocksDir,
-	}, nil
+		blocksDir:        fmt.Sprintf("%s/%s/%s/", blocksBaseDir, label, clientName),
+	}
+	analyzer.CheckBlocksFolder()
+
+	return analyzer, nil
 }
 
 // Asks for a block proposal to the client and stores score in the database
