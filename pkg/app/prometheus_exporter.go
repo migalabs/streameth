@@ -42,8 +42,8 @@ func (s *AppService) runClientsPrometheusMetrics() {
 			case <-ticker.C:
 				log.Infof("prometheus summary:")
 				for _, item := range s.Analyzers {
-					ProposalsUp.WithLabelValues(item.Eth2Provider.Label).Set(float64(item.Monitoring.ProposalStatus))
-					log.Infof("Endpoint: %s, status: %d", item.Eth2Provider.Label, item.Monitoring.ProposalStatus)
+					ProposalsUp.WithLabelValues(item.GetLabel()).Set(float64(item.Monitoring.ProposalStatus))
+					log.Infof("Endpoint: %s, status: %d", item.GetLabel(), item.Monitoring.ProposalStatus)
 				}
 
 			case <-s.ctx.Done():

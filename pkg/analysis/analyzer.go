@@ -35,6 +35,7 @@ type ClientLiveData struct {
 	CurrentHeadSlot  uint64
 	Monitoring       MonitoringMetrics
 	client           string
+	label            string
 	blocksDir        string
 }
 
@@ -70,6 +71,7 @@ func NewBlockAnalyzer(
 		Monitoring:       MonitoringMetrics{},
 		client:           clientName,
 		blocksDir:        fmt.Sprintf("%s/%s/%s/", blocksBaseDir, label, clientName),
+		label:            fmt.Sprintf("%s_%s", label, cliEndpoint),
 	}
 	analyzer.CheckBlocksFolder()
 
@@ -118,7 +120,7 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 
 	metrics := postgresql.BlockMetricsModel{
 		Slot:  int(slot),
-		Label: b.Eth2Provider.Label,
+		Label: b.label,
 		Score: -1,
 	}
 
@@ -127,7 +129,7 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 	blockTime := time.Since(snapshot).Seconds()                     // time to generate block
 
 	if err != nil {
-		log.Errorf("error requesting block from %s: %s", b.Eth2Provider.Label, err)
+		log.Errorf("error requesting block from %s: %s", b.label, err)
 		b.Monitoring.ProposalStatus = 0
 
 	} else {
@@ -135,7 +137,7 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 		// for now we just have Capella
 		newMetrics, err := b.BlockMetrics(block.Data, blockTime)
 		if err != nil {
-			log.Errorf("error analyzing block from %s: %s", b.Eth2Provider.Label, err)
+			log.Errorf("error analyzing block from %s: %s", b.label, err)
 			b.Monitoring.ProposalStatus = 0
 		} else {
 			b.Monitoring.ProposalStatus = 1
@@ -178,6 +180,10 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 
 	// We block the update attestations as new head could impact attestations of the proposed block
 	// b.ProcessNewHead <- struct{}{} // Allow the new head to update attestations
+}
+
+func (b ClientLiveData) GetLabel() string {
+	return b.label
 }
 
 type MonitoringMetrics struct {

@@ -16,9 +16,8 @@ var (
 )
 
 type APIClient struct {
-	ctx   context.Context
-	Api   *http.Service
-	Label string
+	ctx context.Context
+	Api *http.Service
 }
 
 func NewAPIClient(ctx context.Context, label string, cliEndpoint string, timeout time.Duration) (*APIClient, error) {
@@ -38,12 +37,11 @@ func NewAPIClient(ctx context.Context, label string, cliEndpoint string, timeout
 		log.Error("gernerating the http api client")
 	}
 	return &APIClient{
-		ctx:   ctx,
-		Api:   hc,
-		Label: label,
+		ctx: ctx,
+		Api: hc,
 	}, nil
 }
 
 func (p APIClient) String() string {
-	return p.Label + "->" + p.Api.Address()
+	return p.Api.Address()
 }
