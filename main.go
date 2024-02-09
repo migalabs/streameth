@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/migalabs/streameth/pkg/cmd"
 	"github.com/sirupsen/logrus"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/cmd"
 	cli "github.com/urfave/cli/v2"
 )
 

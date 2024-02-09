@@ -3,15 +3,21 @@ package utils
 import (
 	"bytes"
 
-	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 )
 
-func IsCorrectSource(attestation phase0.Attestation, block bellatrix.BeaconBlock) bool {
-	return block.Slot-attestation.Data.Slot <= 5
+func IsCorrectSource(attestation phase0.Attestation, block api.VersionedProposal) bool {
+
+	slot, err := block.Slot()
+	if err != nil {
+		return false
+	}
+	// TODO: check source target
+	return slot-attestation.Data.Slot <= 5
 }
 
-func IsCorrectTarget(attestation phase0.Attestation, block bellatrix.BeaconBlock, rootHistory map[phase0.Slot]phase0.Root) bool {
+func IsCorrectTarget(attestation phase0.Attestation, rootHistory map[phase0.Slot]phase0.Root) bool {
 	attEpoch := int(attestation.Data.Slot / 32)
 	firstSlotOfEpoch := phase0.Slot(attEpoch * 32)
 
@@ -25,9 +31,20 @@ func IsCorrectTarget(attestation phase0.Attestation, block bellatrix.BeaconBlock
 
 }
 
-func IsCorrectHead(attestation phase0.Attestation, block bellatrix.BeaconBlock) bool {
-	if bytes.Equal(block.ParentRoot[:], attestation.Data.BeaconBlockRoot[:]) {
-		if block.Slot-attestation.Data.Slot == 1 {
+func IsCorrectHead(attestation phase0.Attestation, block api.VersionedProposal) bool {
+
+	slot, err := block.Slot()
+	if err != nil {
+		return false
+	}
+
+	parentRoot, err := block.ParentRoot()
+	if err != nil {
+		return false
+	}
+
+	if bytes.Equal(parentRoot[:], attestation.Data.BeaconBlockRoot[:]) {
+		if slot-attestation.Data.Slot == 1 {
 			return true
 		}
 	}

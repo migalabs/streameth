@@ -7,12 +7,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/migalabs/streameth/pkg/app"
+	"github.com/migalabs/streameth/pkg/exporter"
+	"github.com/migalabs/streameth/pkg/utils"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/app"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/exporter"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/utils"
 	cli "github.com/urfave/cli/v2"
 )
 
@@ -28,7 +28,7 @@ var AnalyzerCommand = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "bn-endpoints",
-			Usage: "beacon node endpoints (label/endpoint,label/endpoint)",
+			Usage: "beacon node endpoints (client/label/endpoint,client/label/endpoint)",
 		},
 		&cli.StringFlag{
 			Name:  "db-endpoint",

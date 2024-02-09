@@ -2,14 +2,17 @@ package analysis
 
 import (
 	"context"
+	"encoding/hex"
 	"time"
 
+	"github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/migalabs/streameth/pkg/analysis/additional_structs"
+	"github.com/migalabs/streameth/pkg/client_api"
+	"github.com/migalabs/streameth/pkg/postgresql"
+	"github.com/migalabs/streameth/pkg/utils"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/sirupsen/logrus"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/analysis/additional_structs"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/client_api"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/postgresql"
 )
 
 var (
@@ -29,14 +32,27 @@ type ClientLiveData struct {
 	EpochData        additional_structs.EpochStructs
 	CurrentHeadSlot  uint64
 	Monitoring       MonitoringMetrics
+	client           string
 }
 
-func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, timeout time.Duration, dbClient *postgresql.PostgresDBService) (*ClientLiveData, error) {
+func NewBlockAnalyzer(
+	ctx context.Context,
+	clientName string,
+	label string,
+	cliEndpoint string,
+	timeout time.Duration,
+	dbClient *postgresql.PostgresDBService) (*ClientLiveData, error) {
 	client, err := client_api.NewAPIClient(ctx, label, cliEndpoint, timeout)
 	if err != nil {
 		log.Errorf("could not create eth2 client: %s", err)
 		return &ClientLiveData{}, err
 	}
+
+	if !utils.CheckValidClientName(clientName) {
+		log.Errorf("could not identify eth2 client, try one of: Prysm,Lighthouse,Teku,Nimbus,Lodestar,Grandine")
+		return &ClientLiveData{}, nil
+	}
+
 	return &ClientLiveData{
 		ctx:              ctx,
 		Eth2Provider:     *client,
@@ -48,6 +64,7 @@ func NewBlockAnalyzer(ctx context.Context, label string, cliEndpoint string, tim
 		CurrentHeadSlot:  0,
 		ProcessNewHead:   make(chan struct{}),
 		Monitoring:       MonitoringMetrics{},
+		client:           clientName,
 	}, nil
 }
 
@@ -56,11 +73,30 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 	log := b.log.WithField("task", "generate-block")
 	log.Debugf("processing new block: %d\n", slot)
 
+	// Infinity randao always required
 	randaoReveal := phase0.BLSSignature{}
-	graffiti := []byte("")
+	bs, err := hex.DecodeString(utils.InfinityRandaoReveal)
+	if err == nil {
+		copy(randaoReveal[:], bs)
+	}
+	skipRandaoVerification := false // only needed for Lighthouse, Nimbus and Grandine
+
+	if b.client == utils.LighthouseClient ||
+		b.client == utils.NimbusClient ||
+		b.client == utils.GrandineClient {
+		skipRandaoVerification = true
+	}
+
+	graffiti := make([]byte, 32)
 	snapshot := time.Now()
-	block, err := b.Eth2Provider.Api.BeaconBlockProposal(b.ctx, slot, randaoReveal, graffiti) // ask for block proposal
-	blockTime := time.Since(snapshot).Seconds()                                               // time to generate block
+	proposalOpts := api.ProposalOpts{
+		Slot:                   slot,
+		RandaoReveal:           randaoReveal,
+		Graffiti:               ([32]byte)(graffiti),
+		SkipRandaoVerification: skipRandaoVerification,
+	}
+	block, err := b.Eth2Provider.Api.Proposal(b.ctx, &proposalOpts) // ask for block proposal
+	blockTime := time.Since(snapshot).Seconds()                     // time to generate block
 
 	for i := range b.AttHistory {
 		if i+32 < slot { // attestations can only reference 32 slots back
@@ -84,8 +120,9 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 		b.Monitoring.ProposalStatus = 0
 
 	} else {
-		// for now we just have Bellatrix
-		newMetrics, err := b.BellatrixBlockMetrics(block.Bellatrix, blockTime)
+
+		// for now we just have Capella
+		newMetrics, err := b.BlockMetrics(block.Data, blockTime)
 		if err != nil {
 			log.Errorf("error analyzing block from %s: %s", b.Eth2Provider.Label, err)
 			b.Monitoring.ProposalStatus = 0

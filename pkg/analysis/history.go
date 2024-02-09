@@ -4,16 +4,31 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/api"
+	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/migalabs/streameth/pkg/utils"
 	"github.com/prysmaticlabs/go-bitfield"
 )
 
 // This method receives a new head block and updates the attestation in the history
 // So, when a block is to be proposed, we can check the history to identify new votes
-func (b *ClientLiveData) UpdateAttestations(block bellatrix.BeaconBlock) {
-	log.Tracef("updating attestations using block: %d", block.Slot)
-	for _, attestation := range block.Body.Attestations {
+func (b *ClientLiveData) UpdateAttestations(block spec.VersionedSignedBeaconBlock) {
+
+	slot, err := block.Slot()
+
+	if err != nil {
+		log.Errorf("could not get block slot from block proposal: %s", err)
+	}
+
+	blockBody, err := utils.BlockBodyFromVersionedBlock(block)
+	if err != nil {
+		log.Errorf("could not get block body from block proposal: %s", err)
+	}
+
+	log.Tracef("updating attestations using block: %d", slot)
+
+	for _, attestation := range blockBody.Attestations {
 		slot := attestation.Data.Slot
 
 		if _, exists := b.AttHistory[slot]; !exists {
@@ -44,15 +59,19 @@ func (b *ClientLiveData) UpdateAttestations(block bellatrix.BeaconBlock) {
 // to judge new block proposals
 func (b *ClientLiveData) BuildHistory() bool {
 	log := b.log.WithField("routine", "history-build")
-	currentHead, err := b.Eth2Provider.Api.BeaconBlockHeader(b.ctx, "head")
-	headSlot := currentHead.Header.Message.Slot
+
+	headOpts := api.BeaconBlockHeaderOpts{
+		Block: "head",
+	}
+
+	currentHead, err := b.Eth2Provider.Api.BeaconBlockHeader(b.ctx, &headOpts)
 
 	if err != nil {
 		log.Panicf("could not retrieve current head: ", err)
-
 	}
+	headSlot := currentHead.Data.Header.Message.Slot
 
-	if _, ok := b.BlockRootHistory[currentHead.Header.Message.Slot]; ok {
+	if _, ok := b.BlockRootHistory[headSlot]; ok {
 		// at this point we have already filled the historical records
 		return true
 	}
@@ -66,10 +85,12 @@ func (b *ClientLiveData) BuildHistory() bool {
 		}
 
 		log.Debugf("filling block history, slot: %d\n", i)
-		block, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, fmt.Sprintf("%d", i))
+		block, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, &api.SignedBeaconBlockOpts{
+			Block: fmt.Sprintf("%d", i),
+		})
 
 		if err != nil {
-			if strings.Contains(err.Error(), "Could not find requested block") {
+			if strings.Contains(err.Error(), "404") {
 				log.Debugf("Missed block!")
 				continue
 			} else {
@@ -80,14 +101,14 @@ func (b *ClientLiveData) BuildHistory() bool {
 			log.Debugf("Unknown error with block %d\n", i)
 			continue
 		}
-		root, err := block.Root()
+		root, err := block.Data.Root()
 		if err != nil {
 			log.Panicf("could not retrieve block root from block %d: ", i, err)
 		}
 		b.BlockRootHistory[i] = root
 
 		if i+32 >= headSlot {
-			b.UpdateAttestations(*block.Bellatrix.Message)
+			b.UpdateAttestations(*block.Data)
 		}
 
 	}

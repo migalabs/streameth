@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	api "github.com/attestantio/go-eth2-client/api/v1"
+	api_v1 "github.com/attestantio/go-eth2-client/api/v1"
+
+	"github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/postgresql"
+	"github.com/migalabs/streameth/pkg/postgresql"
 )
 
-func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
+func (b *ClientLiveData) HandleHeadEvent(event *api_v1.Event) {
 	timestamp := time.Now()
 	log := b.log.WithField("routine", "head-event")
 
@@ -18,11 +20,13 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 		return
 	}
 
-	data := event.Data.(*api.HeadEvent) // cast to head event
+	data := event.Data.(*api_v1.HeadEvent) // cast to head event
 	log.Infof("Received a new event: slot %d", data.Slot)
 	// <-b.ProcessNewHead // wait for the block proposal to be done
 	// we only receive the block hash, get the new block
-	newBlock, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, fmt.Sprintf("%#x", data.Block))
+	newBlock, err := b.Eth2Provider.Api.SignedBeaconBlock(b.ctx, &api.SignedBeaconBlockOpts{
+		Block: fmt.Sprintf("%#x", data.Block),
+	})
 
 	if newBlock == nil {
 		log.Errorf("the block is not available: %d", data.Slot)
@@ -32,7 +36,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 		log.Errorf("could not request new block: %s", err)
 		return
 	}
-	b.UpdateAttestations(*newBlock.Bellatrix.Message) // now update the attestations with the new head block in the chain
+	b.UpdateAttestations(*newBlock.Data) // now update the attestations with the new head block in the chain
 
 	// Track if there is any missing slot
 	if b.CurrentHeadSlot != 0 && // we are not at the beginning of the run
@@ -65,7 +69,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api.Event) {
 }
 
 // When the node receives a new attestation, this function is tiggered
-func (b *ClientLiveData) HandleAttestationEvent(event *api.Event) {
+func (b *ClientLiveData) HandleAttestationEvent(event *api_v1.Event) {
 	timestamp := time.Now()
 
 	log := b.log.WithField("routine", "attestation-event")
@@ -122,7 +126,7 @@ func (b *ClientLiveData) HandleAttestationEvent(event *api.Event) {
 
 }
 
-func (b *ClientLiveData) HandleReOrgEvent(event *api.Event) {
+func (b *ClientLiveData) HandleReOrgEvent(event *api_v1.Event) {
 	timestamp := time.Now()
 	log := b.log.WithField("routine", "reorg-event")
 
@@ -130,7 +134,7 @@ func (b *ClientLiveData) HandleReOrgEvent(event *api.Event) {
 		return
 	}
 
-	data := event.Data.(*api.ChainReorgEvent) // cast to head event
+	data := event.Data.(*api_v1.ChainReorgEvent) // cast to head event
 	log.Debugf("New Reorg Evenet")
 
 	baseParams := make([]interface{}, 0)

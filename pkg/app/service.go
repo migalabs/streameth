@@ -8,12 +8,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/migalabs/streameth/pkg/analysis"
+	"github.com/migalabs/streameth/pkg/chain_stats"
+	"github.com/migalabs/streameth/pkg/exporter"
+	"github.com/migalabs/streameth/pkg/postgresql"
 	"github.com/sirupsen/logrus"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/analysis"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/chain_stats"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/exporter"
-	"github.com/tdahar/eth-cl-live-metrics/pkg/postgresql"
 )
 
 var (
@@ -63,14 +64,15 @@ func NewAppService(pCtx context.Context,
 	analyzers := make([]*analysis.ClientLiveData, 0) // one analyzer per beacon node
 
 	for i := range bnEndpoints {
-		// parse each beacon node endpoint
-		if !strings.Contains(bnEndpoints[i], "/") {
+		// parse each beacon node endpoint, need to have 3 sections
+		if !strings.Contains(bnEndpoints[i], "/") || len(strings.Split(bnEndpoints[i], "/")) < 3 {
 			log.Errorf("incorrect format for endpoint: %s", bnEndpoints[i])
 		}
-		// label := strings.Split(bnEndpoints[i], "/")[0]
-		endpoint := strings.Split(bnEndpoints[i], "/")[1]
+		client := strings.Split(bnEndpoints[i], "/")[0]
+		label := strings.Split(bnEndpoints[i], "/")[1]
+		endpoint := strings.Split(bnEndpoints[i], "/")[2]
 		// newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, label, endpoint, time.Second*5)
-		newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, bnEndpoints[i], endpoint, time.Second*5, dbClient)
+		newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, client, label, endpoint, time.Second*5, dbClient)
 
 		if err != nil {
 			log.Errorf("could not create client for endpoint: %s ", endpoint, err)
@@ -85,7 +87,9 @@ func NewAppService(pCtx context.Context,
 		return nil, fmt.Errorf("could not obtain genesis time: %s", err)
 	}
 	// check the current chain head
-	headHeader, err := analyzers[0].Eth2Provider.Api.BeaconBlockHeader(ctx, "head")
+	headHeader, err := analyzers[0].Eth2Provider.Api.BeaconBlockHeader(ctx, &api.BeaconBlockHeaderOpts{
+		Block: "head",
+	})
 	if err != nil {
 		return nil, fmt.Errorf("could not obtain head block header: %s", err)
 	}
@@ -94,7 +98,7 @@ func NewAppService(pCtx context.Context,
 		cancel:    cancel,
 		Analyzers: analyzers,
 		initTime:  time.Now(),
-		HeadSlot:  headHeader.Header.Message.Slot,
+		HeadSlot:  headHeader.Data.Header.Message.Slot,
 		ChainTime: chain_stats.ChainTime{
 			GenesisTime: genesis,
 		},
