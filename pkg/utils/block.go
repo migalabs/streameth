@@ -31,3 +31,14 @@ func BlockBodyFromVersionedBlock(block spec.VersionedSignedBeaconBlock) (*capell
 		return nil, fmt.Errorf("could not figure out the Verioned Block Body Fork Version: %s", block.Version.String())
 	}
 }
+
+func BlockToSSZ(block api.VersionedProposal) ([]byte, error) {
+	switch block.Version.String() {
+
+	case spec.DataVersionCapella.String():
+		return block.Capella.MarshalSSZ()
+	default:
+		return []byte{}, fmt.Errorf("could not figure out data version")
+	}
+
+}

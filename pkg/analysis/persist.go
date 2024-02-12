@@ -1,12 +1,12 @@
 package analysis
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
 
 	"github.com/attestantio/go-eth2-client/api"
+	"github.com/migalabs/streameth/pkg/utils"
 )
 
 func (b *ClientLiveData) CheckBlocksFolder() error {
@@ -37,7 +37,7 @@ func (b *ClientLiveData) PersistBlock(block api.VersionedProposal) error {
 	}
 
 	// files are always new, block proposals are always in a new slot
-	fileName := fmt.Sprintf("slot_%d.json", slot)
+	fileName := fmt.Sprintf("slot_%d.ssz", slot)
 	fullPath := fmt.Sprintf("%s%s", b.blocksDir, fileName)
 
 	// create file
@@ -48,14 +48,17 @@ func (b *ClientLiveData) PersistBlock(block api.VersionedProposal) error {
 
 	defer f.Close()
 
-	w := bufio.NewWriter(f)
-	written, err := w.WriteString(block.String())
+	blockBytes, err := utils.BlockToSSZ(block)
+	if err != nil {
+		log.Errorf("could not export block %d to ssz: %s", slot, err)
+	}
+
+	err = os.WriteFile(fullPath, blockBytes, 0644)
 	if err != nil {
 		log.Errorf("error writing block to %s: %s", fullPath, err)
 		return err
 	}
-	log.Debugf("wrote %d bytes to %s", written, fullPath)
+	log.Debugf("wrote %d bytes to %s", len(blockBytes), fullPath)
 
-	w.Flush()
 	return nil
 }
