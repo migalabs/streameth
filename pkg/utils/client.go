@@ -21,6 +21,8 @@ func CheckValidClientName(name string) bool {
 		return true
 	case LodestarClient:
 		return true
+	case GrandineClient:
+		return true
 	default:
 		return false
 	}

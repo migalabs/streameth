@@ -17,6 +17,7 @@ var (
 	CREATE_SCORE_TABLE = `
 		CREATE TABLE IF NOT EXISTS t_score_metrics(
 			f_slot INT,
+			f_client_name TEXT,
 			f_label TEXT,
 			f_score FLOAT,
 			f_duration FLOAT,
@@ -36,6 +37,7 @@ var (
 	InsertNewScore = `
 		INSERT INTO t_score_metrics (	
 			f_slot, 
+			f_client_name,
 			f_label, 
 			f_score,
 			f_duration,
@@ -50,7 +52,7 @@ var (
 			f_proposer_slashing_score,
 			f_attester_slashing_score,
 			f_sync_score)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);`
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);`
 )
 
 // in case the table did not exist
@@ -65,6 +67,7 @@ func (p *PostgresDBService) createScoreMetricsTable(ctx context.Context, pool *p
 
 type BlockMetricsModel struct {
 	Slot                  int
+	ClientName            string
 	Label                 string
 	Score                 float64
 	Duration              float64

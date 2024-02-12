@@ -99,7 +99,8 @@ func (b *ClientLiveData) BlockMetrics(block *api.VersionedProposal, duration flo
 
 	return postgresql.BlockMetricsModel{
 		Slot:                  int(slot),
-		Label:                 b.Eth2Provider.Label,
+		ClientName:            b.client,
+		Label:                 b.label,
 		CorrectSource:         totalCorrectSource,
 		CorrectTarget:         totalCorrectTarget,
 		CorrectHead:           totalCorrectHead,

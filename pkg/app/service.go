@@ -146,7 +146,7 @@ func (s *AppService) RunAttestations() {
 	for _, item := range s.Analyzers {
 		err := item.Eth2Provider.Api.Events(s.ctx, []string{"attestation"}, item.HandleAttestationEvent) // every new head
 		if err != nil {
-			log.Panicf("failed to subscribe to head events: %s, label: %s", err, item.Eth2Provider.Label)
+			log.Panicf("failed to subscribe to head events: %s, label: %s", err, item.GetLabel())
 		}
 
 	}
@@ -159,7 +159,7 @@ func (s *AppService) RunReOrgs() {
 	for _, item := range s.Analyzers {
 		err := item.Eth2Provider.Api.Events(s.ctx, []string{"chain_reorg"}, item.HandleAttestationEvent) // every new head
 		if err != nil {
-			log.Panicf("failed to subscribe to reorg events: %s, label: %s", err, item.Eth2Provider.Label)
+			log.Panicf("failed to subscribe to reorg events: %s, label: %s", err, item.GetLabel())
 		}
 
 	}
@@ -185,7 +185,7 @@ func (s *AppService) RunMainRoutine(wg *sync.WaitGroup) {
 	for _, item := range s.Analyzers {
 		err := item.Eth2Provider.Api.Events(s.ctx, []string{"head"}, item.HandleHeadEvent) // every new head
 		if err != nil {
-			log.Panicf("failed to subscribe to head events: %s, label: %s", err, item.Eth2Provider.Label)
+			log.Panicf("failed to subscribe to head events: %s, label: %s", err, item.GetLabel())
 		}
 
 	}

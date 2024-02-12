@@ -44,7 +44,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api_v1.Event) {
 		for i := b.CurrentHeadSlot + 1; i < uint64(data.Slot); i++ {
 			params := make([]interface{}, 0)
 			params = append(params, i)
-			params = append(params, b.Eth2Provider.Label)
+			params = append(params, b.label)
 			writeTask := postgresql.WriteTask{
 				QueryString: postgresql.InsertNewMissedBlock,
 				Params:      params,
@@ -55,7 +55,7 @@ func (b *ClientLiveData) HandleHeadEvent(event *api_v1.Event) {
 	b.CurrentHeadSlot = uint64(data.Slot)
 	params := make([]interface{}, 0)
 	params = append(params, int(data.Slot))
-	params = append(params, b.Eth2Provider.Label)
+	params = append(params, b.label)
 	params = append(params, timestamp)
 	writeTask := postgresql.WriteTask{
 		QueryString: postgresql.InsertNewBlock,
@@ -96,7 +96,7 @@ func (b *ClientLiveData) HandleAttestationEvent(event *api_v1.Event) {
 
 	// create params to be written, same for all validators (same attestation)
 	baseParams := make([]interface{}, 0)
-	baseParams = append(baseParams, b.Eth2Provider.Label)
+	baseParams = append(baseParams, b.label)
 	baseParams = append(baseParams, uint64(data.Data.Slot))
 	baseParams = append(baseParams, uint64(data.Data.Index))
 	baseParams = append(baseParams, timestamp)
@@ -138,7 +138,7 @@ func (b *ClientLiveData) HandleReOrgEvent(event *api_v1.Event) {
 	log.Debugf("New Reorg Evenet")
 
 	baseParams := make([]interface{}, 0)
-	baseParams = append(baseParams, b.Eth2Provider.Label)
+	baseParams = append(baseParams, b.label)
 	baseParams = append(baseParams, uint64(data.Slot))
 	baseParams = append(baseParams, hex.EncodeToString(data.OldHeadBlock[:]))
 	baseParams = append(baseParams, hex.EncodeToString(data.NewHeadBlock[:]))
