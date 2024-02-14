@@ -6,7 +6,7 @@ services:
       context: .
     init: true
     command: >-
-      live-metrics
+      streameth
       --log-level=${STREAMETH_LOG_LEVEL:-info}
       --bn-endpoints=${STREAMETH_BN_ENDPOINTS}
       --db-endpoint=${STREAMETH_DB_ENDPOINT:-postgresql://user:pass@localhost:5432/streameth}

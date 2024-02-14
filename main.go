@@ -6,28 +6,27 @@ import (
 	"os"
 
 	"github.com/migalabs/streameth/cmd"
+	"github.com/migalabs/streameth/pkg/utils"
 	"github.com/sirupsen/logrus"
 	cli "github.com/urfave/cli/v2"
 )
 
 var (
-	Version = "v1.0.0"
-	CliName = "Eth CL Live Metrics"
-	log     = logrus.WithField(
+	log = logrus.WithField(
 		"cli", "CliName",
 	)
 )
 
 func main() {
-	fmt.Println(CliName, Version)
+	fmt.Println(utils.CliName, utils.Version)
 
 	// Set the general log configurations for the entire tool
 	logrus.SetLevel(logrus.InfoLevel)
 
 	app := &cli.App{
-		Name:      CliName,
+		Name:      utils.CliName,
 		Usage:     "Tinny client that requests and processes the Beacon Block proposals for each client.",
-		UsageText: "live-metrics [commands] [arguments...]",
+		UsageText: "streameth [commands] [arguments...]",
 		Authors: []*cli.Author{
 			{
 				Name:  "Tarun",

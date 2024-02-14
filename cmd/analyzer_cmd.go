@@ -21,9 +21,9 @@ var (
 )
 
 var AnalyzerCommand = &cli.Command{
-	Name:   "live-metrics",
+	Name:   "streameth",
 	Usage:  "Receive Block proposals from clients and evaluate score, as well as other metrics",
-	Action: LaunchBlockAnalyzer,
+	Action: LaunchLiveMetrics,
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:        "log-level",
@@ -62,7 +62,7 @@ var AnalyzerCommand = &cli.Command{
 
 var QueryTimeout = 90 * time.Second
 
-func LaunchBlockAnalyzer(c *cli.Context) error {
+func LaunchLiveMetrics(c *cli.Context) error {
 
 	conf := config.NewStreamethConfig()
 	conf.Apply(c)
