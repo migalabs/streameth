@@ -2,7 +2,6 @@ package analysis
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -94,13 +93,6 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 			delete(b.BlockRootHistory, i) // remove old entries from the map
 		}
 	}
-
-	// Infinity randao always required
-	randaoReveal := phase0.BLSSignature{}
-	bs, err := hex.DecodeString(utils.InfinityRandaoReveal)
-	if err == nil {
-		copy(randaoReveal[:], bs)
-	}
 	skipRandaoVerification := false // only needed for Lighthouse, Nimbus and Grandine
 
 	if b.client == utils.LighthouseClient ||
@@ -109,12 +101,10 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 		skipRandaoVerification = true
 	}
 
-	graffiti := make([]byte, 32) // TODO: 32 must be a constant
-
 	proposalOpts := api.ProposalOpts{
 		Slot:                   slot,
-		RandaoReveal:           randaoReveal,
-		Graffiti:               ([32]byte)(graffiti),
+		RandaoReveal:           utils.CreateInfinityRandaoReveal(),
+		Graffiti:               utils.GraffitiFromString(""),
 		SkipRandaoVerification: skipRandaoVerification,
 	}
 

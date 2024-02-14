@@ -123,6 +123,8 @@ func (p *PostgresDBService) runWriters() {
 			defer p.WgDBWriter.Done()
 			wlogWriter := log.WithField("DBWriter", dbWriterID)
 			writeBatch := pgx_v4.Batch{}
+			// tick every slot start (12 seconds)
+			ticker := time.NewTicker(15 * time.Second)
 		loop:
 			for {
 
@@ -150,9 +152,13 @@ func (p *PostgresDBService) runWriters() {
 				case <-p.ctx.Done():
 					wlogWriter.Info("shutdown detected, closing persister")
 					break loop
-				default:
-				}
 
+				case <-ticker.C:
+					if p.endProcess >= 1 && len(p.WriteChan) == 0 {
+						wlogWriter.Warnf("finish detected, closing persister")
+						break loop
+					}
+				}
 			}
 			wlogWriter.Debugf("DB Writer finished...")
 

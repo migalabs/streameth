@@ -218,8 +218,6 @@ loop:
 				// for each beacon node, get a new block and analyze it
 				go analyzer.ProposeNewBlock(s.HeadSlot)
 			}
-
-		default:
 		}
 	}
 	log.Infof("finished")
