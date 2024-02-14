@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/migalabs/streameth/pkg/app"
-	"github.com/migalabs/streameth/pkg/exporter"
 	"github.com/migalabs/streameth/pkg/utils"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -108,10 +107,7 @@ func LaunchBlockAnalyzer(c *cli.Context) error {
 	bnEndpoints := strings.Split(c.String("bn-endpoints"), ",")
 	dbEndpoint := c.String("db-endpoint")
 
-	exportService := exporter.NewExporterService(c.Context)
-	exportService.Run()
-
-	service, err := app.NewAppService(c.Context, bnEndpoints, dbEndpoint, dbWorkers, metrics, exportService, blocksDir)
+	service, err := app.NewAppService(c.Context, bnEndpoints, dbEndpoint, dbWorkers, metrics, blocksDir)
 	if err != nil {
 		log.Fatal("could not start app: %s", err.Error())
 	}

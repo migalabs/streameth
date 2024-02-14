@@ -63,7 +63,7 @@ func NewBlockAnalyzer(
 		DBClient:         dbClient,
 		AttHistory:       make(map[phase0.Slot]map[phase0.CommitteeIndex]bitfield.Bitlist),
 		BlockRootHistory: make(map[phase0.Slot]phase0.Root),
-		log:              log.WithField("label", label),
+		log:              log.WithField("label", label).WithField("clientName", clientName),
 		EpochData:        additional_structs.NewEpochData(client.Api),
 		CurrentHeadSlot:  0,
 		ProcessNewHead:   make(chan struct{}),
@@ -175,6 +175,10 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 
 func (b *ClientLiveData) GetLabel() string {
 	return b.label
+}
+
+func (b *ClientLiveData) GetClient() string {
+	return b.client
 }
 
 type MonitoringMetrics struct {
