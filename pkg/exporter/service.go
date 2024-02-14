@@ -2,101 +2,120 @@ package exporter
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	_ "net/http/pprof"
+	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
-	NewExporterCheckInterval = 15 * time.Second
-	ModuleName               = "EXPORTER"
-	log                      = logrus.WithField(
-		"module", ModuleName,
-	)
+	// TODO: Just hardcoded, move to config
+	EndpointUrl string = "metrics"
+
+	MetricLoopInterval time.Duration = 15 * time.Second
 )
 
-type ExporterService struct {
-	// TODO: adding new Exporters to the Service might bring up race conditions
-	// control variables
-	ctx    context.Context
-	cancel context.CancelFunc
+type PrometheusMetrics struct {
+	ctx context.Context
 
-	PrometheusRunner PrometheusRunner
+	ExposedIp       string
+	ExposedPort     string
+	EndpointUrl     string
+	RefreshInterval time.Duration
 
-	ExporterRoutines map[string]Exporter
-	// TODO: Check if we need anything else
+	Modules []*MetricsModule
+
+	wg     sync.WaitGroup
+	closeC chan struct{}
 }
 
-// Basic unit of metrics export
-type Exporter interface {
-	Name() string
-	Init()
-	Run()
-	Close()
-	Status() string
-	Details() string
-}
-
-// Creates and initialized the exporter service
-// where any module can create a dedicated exporter
-func NewExporterService(ctx context.Context) *ExporterService {
-	mainctx, cancel := context.WithCancel(ctx)
-
-	exporterSrv := &ExporterService{
-		ctx:              mainctx,
-		cancel:           cancel,
-		PrometheusRunner: NewPrometheusRunner(),
-		ExporterRoutines: make(map[string]Exporter),
+func NewPrometheusMetrics(ctx context.Context, ip string, port int) *PrometheusMetrics {
+	return &PrometheusMetrics{
+		ctx:             ctx,
+		ExposedIp:       ip,
+		ExposedPort:     fmt.Sprintf("%d", port),
+		EndpointUrl:     EndpointUrl,
+		RefreshInterval: MetricLoopInterval,
+		Modules:         make([]*MetricsModule, 0),
+		closeC:          make(chan struct{}),
 	}
-	return exporterSrv
 }
 
-func (s *ExporterService) Run() {
-	log.Info("running the exporter service")
-	// start the prometheus endpoint
-	s.PrometheusRunner.Start()
-	// run the exporters check in a go routine (until shutdown)
-	ticker := time.NewTicker(NewExporterCheckInterval)
+func (p *PrometheusMetrics) AddMetricsModule(newMod *MetricsModule) {
+	p.Modules = append(p.Modules, newMod)
+}
+
+func (p *PrometheusMetrics) Start() error {
+	http.Handle("/"+p.EndpointUrl, promhttp.Handler())
 	go func() {
-		// iteration loop
-		for {
-			select {
-			case <-s.ctx.Done():
-				log.Info("context of exporter was close, closing exporting service")
-				return
-			case <-ticker.C:
-				for _, export := range s.ExporterRoutines {
-					// check if the metrics are up exporting
-					// run them otherwise
-					status := export.Status()
-					// Check if the exporter is in ready state to initialize it
-					// and run it
-					if status == "ready" {
-						// get details of the
-						log.Debug(export.Details())
-						export.Init()
-						export.Run()
-						log.Debug(export.Status())
-					}
-				}
-			}
-		}
+		log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%s", p.ExposedIp, p.ExposedPort), nil))
 	}()
-
-}
-
-// add new exporter to the list of exporters
-func (s *ExporterService) AddNewExporter(exptr Exporter) {
-	log.Infof("adding exporter %s to the exporter service", exptr.Name())
-	// TODO: - might generate a race condition
-	s.ExporterRoutines[exptr.Name()] = exptr
-}
-
-// Close all the running metrics exposers
-func (s *ExporterService) Close() {
-	log.Infof("closing %d metrics exporters", len(s.ExporterRoutines))
-	for name, export := range s.ExporterRoutines {
-		log.Infof("closing exporter %s", name)
-		export.Close()
+	log.Infof("prometheus metrics listening on: %s:%s", p.ExposedIp, p.ExposedPort)
+	err := p.initPrometheusMetrics()
+	if err != nil {
+		return errors.Wrap(err, "unable to init prometheus metrics")
 	}
+
+	p.wg.Add(1)
+	go p.launchMetricsUpdater()
+
+	return nil
+}
+
+func (p *PrometheusMetrics) initPrometheusMetrics() error {
+	log.Debugf("initializing %d metrics modules", len(p.Modules))
+	// iter through all the available modules - and call the
+	// mudule.InitMetrics() method
+	for _, mod := range p.Modules {
+		err := mod.Init()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *PrometheusMetrics) launchMetricsUpdater() {
+	defer p.wg.Done()
+
+	ticker := time.NewTicker(p.RefreshInterval)
+
+metricsUpdateLoop:
+	for {
+		select {
+		case <-ticker.C:
+			log.Trace("updating values for prometheus metrics")
+			// update all the submodules on prometheus
+			for _, mod := range p.Modules {
+				summary := make(map[string]interface{}, 0)
+				modSum := mod.UpdateSummary()
+				for key, value := range modSum {
+					summary[key] = value
+				}
+				// compose a message with the give summary
+				logFields := log.Fields(modSum)
+				log.WithFields(logFields).Debugf("summary for %s", mod.Name())
+			}
+
+		case <-p.closeC:
+			log.Debug("detected a controled shutdown")
+			break metricsUpdateLoop
+		case <-p.ctx.Done():
+			log.Debug("detected that context died, shutting down")
+			break metricsUpdateLoop
+		}
+	}
+}
+
+func (p *PrometheusMetrics) Close() {
+	// Init loop for each of the Exporters
+	log.Infof("closing %d prometheus metrics modules", len(p.Modules))
+	p.closeC <- struct{}{}
+	p.wg.Wait()
+	log.Infof("prometheus metrics exporte successfully closed")
 }

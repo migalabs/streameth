@@ -18,8 +18,7 @@ import (
 )
 
 var (
-	modName = "Main App"
-	log     = logrus.WithField(
+	log = logrus.WithField(
 		"module", modName,
 	)
 	attestationMetric = "attestations"
@@ -37,7 +36,7 @@ type AppService struct {
 	Metrics         []string
 	finishTasks     int32
 	DBClient        *postgresql.PostgresDBService
-	ExporterService *exporter.ExporterService
+	ExporterService *exporter.PrometheusMetrics
 }
 
 func NewAppService(pCtx context.Context,
@@ -45,8 +44,8 @@ func NewAppService(pCtx context.Context,
 	dbEndpooint string,
 	dbWorkers int,
 	metrics []string,
-	exporterService *exporter.ExporterService,
-	blocksDir string) (*AppService, error) {
+	blocksDir string,
+	prometheusPort int) (*AppService, error) {
 
 	ctx, cancel := context.WithCancel(pCtx)
 	batchLen := len(bnEndpoints)
@@ -94,7 +93,11 @@ func NewAppService(pCtx context.Context,
 	if err != nil {
 		return nil, fmt.Errorf("could not obtain head block header: %s", err)
 	}
-	return &AppService{
+
+	// Prometheus metrics
+	exporterService := exporter.NewPrometheusMetrics(ctx, DefaultPrometheusIP, prometheusPort)
+
+	appService := &AppService{
 		ctx:       ctx,
 		cancel:    cancel,
 		Analyzers: analyzers,
@@ -106,13 +109,17 @@ func NewAppService(pCtx context.Context,
 		Metrics:         metrics,
 		DBClient:        dbClient,
 		ExporterService: exporterService,
-	}, nil
+	}
+
+	exporterService.AddMetricsModule(appService.GetPrometheusMetrics())
+
+	exporterService.Start()
+
+	return appService, nil
 }
 
 // Main routine: build block history and block proposals every 12 seconds
 func (s *AppService) Run() {
-
-	s.ServeMetrics()
 
 	defer s.cancel()
 	var wg sync.WaitGroup
