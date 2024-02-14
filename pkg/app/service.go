@@ -44,7 +44,8 @@ func NewAppService(pCtx context.Context,
 	dbEndpooint string,
 	dbWorkers int,
 	metrics []string,
-	blocksDir string) (*AppService, error) {
+	blocksDir string,
+	prometheusPort int) (*AppService, error) {
 
 	ctx, cancel := context.WithCancel(pCtx)
 	batchLen := len(bnEndpoints)
@@ -94,7 +95,7 @@ func NewAppService(pCtx context.Context,
 	}
 
 	// Prometheus metrics
-	exporterService := exporter.NewPrometheusMetrics(ctx, DefaultPrometheusIP, DefaultMetricsPort)
+	exporterService := exporter.NewPrometheusMetrics(ctx, DefaultPrometheusIP, prometheusPort)
 
 	appService := &AppService{
 		ctx:       ctx,

@@ -51,6 +51,11 @@ var AnalyzerCommand = &cli.Command{
 			Name:        "blocks-dir",
 			Usage:       "Folder where to store proposal blocks by label",
 			DefaultText: DefaultBlocksDir,
+		},
+		&cli.StringFlag{
+			Name:        "prometheus-port",
+			Usage:       "Port where to listen for metrics",
+			DefaultText: DefaultBlocksDir,
 		}},
 }
 
@@ -60,6 +65,7 @@ func LaunchBlockAnalyzer(c *cli.Context) error {
 	dbWorkers := 1
 	blocksDir := DefaultBlocksDir
 	metrics := make([]string, 0)
+	prometheuPort := app.DefaultMetricsPort
 	logLauncher := log.WithField(
 		"module", "ScorerCommand",
 	)
@@ -98,6 +104,10 @@ func LaunchBlockAnalyzer(c *cli.Context) error {
 		dbWorkers = c.Int("db-workers")
 	}
 
+	if c.IsSet("prometheus-port") {
+		prometheuPort = c.Int("prometheus-port")
+	}
+
 	if !c.IsSet("blocks-dir") {
 		logLauncher.Warnf("no blocks dir configured, defaulting to ./proposal_blocks_data")
 	} else {
@@ -107,7 +117,7 @@ func LaunchBlockAnalyzer(c *cli.Context) error {
 	bnEndpoints := strings.Split(c.String("bn-endpoints"), ",")
 	dbEndpoint := c.String("db-endpoint")
 
-	service, err := app.NewAppService(c.Context, bnEndpoints, dbEndpoint, dbWorkers, metrics, blocksDir)
+	service, err := app.NewAppService(c.Context, bnEndpoints, dbEndpoint, dbWorkers, metrics, blocksDir, prometheuPort)
 	if err != nil {
 		log.Fatal("could not start app: %s", err.Error())
 	}
