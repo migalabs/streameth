@@ -12,6 +12,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/migalabs/streameth/pkg/analysis"
 	"github.com/migalabs/streameth/pkg/chain_stats"
+	"github.com/migalabs/streameth/pkg/config"
 	"github.com/migalabs/streameth/pkg/exporter"
 	"github.com/migalabs/streameth/pkg/postgresql"
 	"github.com/sirupsen/logrus"
@@ -40,12 +41,16 @@ type AppService struct {
 }
 
 func NewAppService(pCtx context.Context,
-	bnEndpoints []string,
-	dbEndpooint string,
-	dbWorkers int,
-	metrics []string,
-	blocksDir string,
-	prometheusPort int) (*AppService, error) {
+	conf config.StreamethConfig) (*AppService, error) {
+
+	metrics := make([]string, 0)
+
+	metricsInput := strings.Split(conf.Metrics, ",")
+	for _, item := range metricsInput {
+		metrics = append(metrics, item)
+	}
+
+	bnEndpoints := strings.Split(conf.BnEndpoints, ",")
 
 	ctx, cancel := context.WithCancel(pCtx)
 	batchLen := len(bnEndpoints)
@@ -55,7 +60,7 @@ func NewAppService(pCtx context.Context,
 		}
 	}
 
-	dbClient, err := postgresql.ConnectToDB(ctx, dbEndpooint, dbWorkers, batchLen)
+	dbClient, err := postgresql.ConnectToDB(ctx, conf.DBEndpoint, conf.DbWorkers, batchLen)
 
 	if err != nil {
 		log.Panicf("could not connect to database: %s", err)
@@ -71,8 +76,15 @@ func NewAppService(pCtx context.Context,
 		client := strings.Split(bnEndpoints[i], "/")[0]
 		label := strings.Split(bnEndpoints[i], "/")[1]
 		endpoint := strings.Split(bnEndpoints[i], "/")[2]
-		// newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, label, endpoint, time.Second*5)
-		newAnalyzer, err := analysis.NewBlockAnalyzer(ctx, client, label, endpoint, time.Second*5, dbClient, blocksDir)
+
+		newAnalyzer, err := analysis.NewBlockAnalyzer(
+			ctx,
+			client,
+			label,
+			endpoint,
+			time.Second*5,
+			dbClient,
+			conf.BlocksDir)
 
 		if err != nil {
 			log.Errorf("could not create client for endpoint: %s ", endpoint, err)
@@ -95,7 +107,7 @@ func NewAppService(pCtx context.Context,
 	}
 
 	// Prometheus metrics
-	exporterService := exporter.NewPrometheusMetrics(ctx, DefaultPrometheusIP, prometheusPort)
+	exporterService := exporter.NewPrometheusMetrics(ctx, DefaultPrometheusIP, conf.PrometheusPort)
 
 	appService := &AppService{
 		ctx:       ctx,
