@@ -15,6 +15,7 @@ import (
 	"github.com/migalabs/streameth/pkg/config"
 	"github.com/migalabs/streameth/pkg/exporter"
 	"github.com/migalabs/streameth/pkg/postgresql"
+	"github.com/migalabs/streameth/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,9 +23,6 @@ var (
 	log = logrus.WithField(
 		"module", modName,
 	)
-	attestationMetric = "attestations"
-	proposalMetric    = "proposals"
-	reorgMetric       = "reorgs"
 )
 
 type AppService struct {
@@ -45,9 +43,9 @@ func NewAppService(pCtx context.Context,
 
 	metrics := make([]string, 0)
 
-	metricsInput := strings.Split(conf.Metrics, ",")
-	for _, item := range metricsInput {
-		metrics = append(metrics, item)
+	metrics, err := utils.ParseMetrics(conf.Metrics)
+	if err != nil {
+		return &AppService{}, err
 	}
 
 	bnEndpoints := strings.Split(conf.BnEndpoints, ",")
@@ -55,7 +53,7 @@ func NewAppService(pCtx context.Context,
 	ctx, cancel := context.WithCancel(pCtx)
 	batchLen := len(bnEndpoints)
 	for _, item := range metrics {
-		if item == attestationMetric {
+		if item == utils.AttestationMetric {
 			batchLen = 100
 		}
 	}
@@ -136,18 +134,18 @@ func (s *AppService) Run() {
 	defer s.cancel()
 	var wg sync.WaitGroup
 	for _, item := range s.Metrics {
-		if item == attestationMetric {
+		if item == utils.AttestationMetric {
 			log.Infof("initiating attestation events monitoring")
 			wg.Add(1)
 			s.RunAttestations()
 		}
 
-		if item == reorgMetric {
+		if item == utils.ReorgMetric {
 			wg.Add(1)
 			s.RunReOrgs()
 		}
 
-		if item == proposalMetric {
+		if item == utils.ProposalMetric {
 			log.Infof("initiating block proposal monitoring")
 			wg.Add(1)
 			go s.RunMainRoutine(&wg)

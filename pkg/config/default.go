@@ -3,7 +3,7 @@ package config
 var (
 	DefaultLogLevel       string = "info"
 	DefaultBnEndpoints    string = ""
-	DefaultDBEndpoint     string = "postgres://user:password@localhost:5432/goteth"
+	DefaultDBEndpoint     string = "postgres://user:password@localhost:5432/streameth"
 	DefaultDbWorkers      int    = 1
 	DefaultMetrics        string = "proposal"
 	DefaultBlocksDir      string = "./block_proposals"

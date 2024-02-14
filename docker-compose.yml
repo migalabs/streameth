@@ -1,0 +1,17 @@
+version: '3.7'
+
+services:
+  streameth:
+    build:
+      context: .
+    init: true
+    command: >-
+      live-metrics
+      --log-level=${STREAMETH_LOG_LEVEL:-info}
+      --bn-endpoints=${STREAMETH_BN_ENDPOINTS}
+      --db-endpoint=${STREAMETH_DB_ENDPOINT:-postgresql://user:pass@localhost:5432/streameth}
+      --db-workers=${STREAMETH_DB_WORKERS:-1}
+      --blocks-dir=${STREAMETH_BLOCKS_DIR:-/block_proposals}
+      --metrics=${STREAMETH_METRICS:-proposals}
+    network_mode: 'host'
+                
