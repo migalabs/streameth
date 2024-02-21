@@ -54,10 +54,12 @@ func (b *ClientLiveData) HandleHeadEvent(event *api_v1.Event) {
 		}
 	}
 	b.CurrentHeadSlot = uint64(data.Slot)
-	if b.CurrentHeadSlot%utils.SlotsPerEpoch == 0 {
-		// new epoch
+	if b.CurrentHeadSlot%utils.SlotsPerEpoch == (utils.SlotsPerEpoch - 1) {
+		// last slot of epoch, prepare next
+		//  epoch is the next slot divided by 32
+		epoch := phase0.Epoch((b.CurrentHeadSlot + 1) / utils.SlotsPerEpoch)
 
-		b.ProcessEpochTasks()
+		go b.ProcessEpochTasks(epoch)
 	}
 	params := make([]interface{}, 0)
 	params = append(params, int(data.Slot))
@@ -157,13 +159,23 @@ func (b *ClientLiveData) HandleReOrgEvent(event *api_v1.Event) {
 
 }
 
-func (b *ClientLiveData) ProcessEpochTasks() error {
-	log.Debugf("submitting proposal preparation...")
-	err := b.Eth2Provider.SubmitProposalPreparation()
+func (b *ClientLiveData) ProcessEpochTasks(epoch phase0.Epoch) {
+	// retrieve duties
+	duties, err := b.Eth2Provider.ProposerDuties(epoch)
 
 	if err != nil {
-		return fmt.Errorf("could not submit a proposal peparation: %s", err)
+		log.Errorf("could not process epoch %d tasks: %s", epoch, err)
+	}
+	vals := make([]phase0.ValidatorIndex, len(duties))
+
+	for i, item := range duties {
+		vals[i] = item.ValidatorIndex
 	}
 
-	return nil
+	log.Debugf("submitting proposal preparation...")
+	err = b.Eth2Provider.SubmitProposalPreparation(vals)
+
+	if err != nil {
+		log.Errorf("could not submit a proposal peparation: %s", err)
+	}
 }

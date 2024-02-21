@@ -42,13 +42,18 @@ func (b *APIClient) ProposeNewBlock(slot phase0.Slot, client string) (api.Versio
 
 }
 
-func (s APIClient) SubmitProposalPreparation() error {
-	err := s.Api.SubmitProposalPreparations(s.ctx, []*v1.ProposalPreparation{
-		&v1.ProposalPreparation{
-			ValidatorIndex: 0,
+func (s APIClient) SubmitProposalPreparation(vals []phase0.ValidatorIndex) error {
+
+	proposalOpts := make([]*v1.ProposalPreparation, len(vals))
+
+	for i, item := range vals {
+		proposalOpts[i] = &v1.ProposalPreparation{
+			ValidatorIndex: item,
 			FeeRecipient:   utils.CreateEmptyFeeRecipient(),
-		},
-	})
+		}
+	}
+
+	err := s.Api.SubmitProposalPreparations(s.ctx, proposalOpts)
 
 	return err
 
