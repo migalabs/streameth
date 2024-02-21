@@ -114,6 +114,13 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 		Score: -1,
 	}
 
+	if slot > (phase0.Slot(b.CurrentHeadSlot) + utils.SlotsPerEpoch) {
+		// beacon node is not synced
+		b.Monitoring.ProposalStatus = 0
+		log.Errorf("node is not synced(proposal slot: %d, node head slot: %d), not proposing", slot, b.CurrentHeadSlot)
+		return
+	}
+
 	snapshot := time.Now()
 	block, err := b.Eth2Provider.Api.Proposal(b.ctx, &proposalOpts) // ask for block proposal
 	blockTime := time.Since(snapshot).Seconds()                     // time to generate block

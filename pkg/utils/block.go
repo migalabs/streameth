@@ -6,12 +6,15 @@ import (
 
 	"github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 )
 
 const (
 	InfinityRandaoReveal = "c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	EmptyFeeRecipient    = "0x0000000000000000000000000000000000000000"
+	SlotsPerEpoch        = 32
 )
 
 func CreateInfinityRandaoReveal() phase0.BLSSignature {
@@ -23,6 +26,17 @@ func CreateInfinityRandaoReveal() phase0.BLSSignature {
 	}
 
 	return randaoReveal
+}
+
+func CreateEmptyFeeRecipient() bellatrix.ExecutionAddress {
+	// Infinity randao always required
+	feeRecipient := bellatrix.ExecutionAddress{}
+	bs, err := hex.DecodeString(EmptyFeeRecipient)
+	if err == nil {
+		copy(feeRecipient[:], bs)
+	}
+
+	return feeRecipient
 }
 
 func GraffitiFromString(graffitiStr string) [32]byte {
