@@ -10,6 +10,7 @@ import (
 	"github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/migalabs/streameth/pkg/postgresql"
+	"github.com/migalabs/streameth/pkg/utils"
 )
 
 func (b *ClientLiveData) HandleHeadEvent(event *api_v1.Event) {
@@ -53,6 +54,12 @@ func (b *ClientLiveData) HandleHeadEvent(event *api_v1.Event) {
 		}
 	}
 	b.CurrentHeadSlot = uint64(data.Slot)
+	if b.CurrentHeadSlot%utils.SlotsPerEpoch == (utils.SlotsPerEpoch / 2) {
+		// by halfway the epoch prepare proposers for next epoch
+		epoch := phase0.Epoch((b.CurrentHeadSlot)/utils.SlotsPerEpoch) + 1 // next epoch
+
+		go b.ProcessEpochTasks(epoch)
+	}
 	params := make([]interface{}, 0)
 	params = append(params, int(data.Slot))
 	params = append(params, b.label)
@@ -62,9 +69,6 @@ func (b *ClientLiveData) HandleHeadEvent(event *api_v1.Event) {
 		Params:      params,
 	}
 	b.DBClient.WriteChan <- writeTask // store
-
-	// wait for the block proposal to be processed, otherwise the attestations could get mixed
-	// with the proposal
 
 }
 
@@ -152,4 +156,25 @@ func (b *ClientLiveData) HandleReOrgEvent(event *api_v1.Event) {
 
 	b.DBClient.WriteChan <- writeTask // send task to be written
 
+}
+
+func (b *ClientLiveData) ProcessEpochTasks(epoch phase0.Epoch) {
+	// retrieve duties
+	duties, err := b.Eth2Provider.ProposerDuties(epoch)
+
+	if err != nil {
+		log.Errorf("could not process epoch %d tasks: %s", epoch, err)
+	}
+	vals := make([]phase0.ValidatorIndex, len(duties))
+
+	for i, item := range duties {
+		vals[i] = item.ValidatorIndex
+	}
+
+	log.Debugf("submitting proposal preparation...")
+	err = b.Eth2Provider.SubmitProposalPreparation(vals)
+
+	if err != nil {
+		log.Errorf("could not process epoch %d tasks: %s", epoch, err)
+	}
 }
