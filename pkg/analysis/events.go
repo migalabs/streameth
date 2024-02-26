@@ -54,10 +54,9 @@ func (b *ClientLiveData) HandleHeadEvent(event *api_v1.Event) {
 		}
 	}
 	b.CurrentHeadSlot = uint64(data.Slot)
-	if b.CurrentHeadSlot%utils.SlotsPerEpoch == (utils.SlotsPerEpoch - 1) {
-		// last slot of epoch, prepare next
-		//  epoch is the next slot divided by 32
-		epoch := phase0.Epoch((b.CurrentHeadSlot + 1) / utils.SlotsPerEpoch)
+	if b.CurrentHeadSlot%utils.SlotsPerEpoch == (utils.SlotsPerEpoch / 2) {
+		// by halfway the epoch prepare proposers for next epoch
+		epoch := phase0.Epoch((b.CurrentHeadSlot)/utils.SlotsPerEpoch) + 1 // next epoch
 
 		go b.ProcessEpochTasks(epoch)
 	}
@@ -176,6 +175,6 @@ func (b *ClientLiveData) ProcessEpochTasks(epoch phase0.Epoch) {
 	err = b.Eth2Provider.SubmitProposalPreparation(vals)
 
 	if err != nil {
-		log.Errorf("could not submit a proposal peparation: %s", err)
+		log.Errorf("could not process epoch %d tasks: %s", epoch, err)
 	}
 }

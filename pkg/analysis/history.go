@@ -67,7 +67,7 @@ func (b *ClientLiveData) BuildHistory() bool {
 	currentHead, err := b.Eth2Provider.Api.BeaconBlockHeader(b.ctx, &headOpts)
 
 	if err != nil {
-		log.Panicf("could not retrieve current head: ", err)
+		log.Panicf("could not retrieve current head: %s", err)
 	}
 	headSlot := currentHead.Data.Header.Message.Slot
 
@@ -94,7 +94,7 @@ func (b *ClientLiveData) BuildHistory() bool {
 				log.Debugf("Missed block!")
 				continue
 			} else {
-				log.Panicf("could not retrieve historical block at slot: %d: ", i, err)
+				log.Panicf("could not retrieve historical block at slot: %d: %s", i, err)
 			}
 		}
 		if block == nil {
@@ -103,7 +103,7 @@ func (b *ClientLiveData) BuildHistory() bool {
 		}
 		root, err := block.Data.Root()
 		if err != nil {
-			log.Panicf("could not retrieve block root from block %d: ", i, err)
+			log.Panicf("could not retrieve block root from block %d: %s", i, err)
 		}
 		b.BlockRootHistory[i] = root
 

@@ -52,7 +52,7 @@ func (s APIClient) SubmitProposalPreparation(vals []phase0.ValidatorIndex) error
 			FeeRecipient:   utils.CreateEmptyFeeRecipient(),
 		}
 	}
-
+	log.Infof("preparing proposals in epoch for validators: %+v", vals)
 	err := s.Api.SubmitProposalPreparations(s.ctx, proposalOpts)
 
 	return err
