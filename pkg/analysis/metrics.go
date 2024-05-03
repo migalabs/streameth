@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"sort"
+	"time"
 
 	"github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
@@ -21,7 +22,7 @@ const (
 
 // https://github.com/attestantio/vouch/blob/0c75ee8315dc4e5df85eb2aa09b4acc2b4436661/strategies/beaconblockproposal/best/score.go#L222
 // This function receives a new block proposal and ouputs a block score and metrics about the block
-func (b *ClientLiveData) BlockMetrics(block *api.VersionedProposal, duration float64) (postgresql.BlockMetricsModel, error) {
+func (b *ClientLiveData) BlockMetrics(block *api.VersionedProposal, duration time.Duration) (postgresql.BlockMetricsModel, error) {
 	// log := b.log.WithField("task", "bellatrix-block-score") // add extra log for function
 
 	totalNewVotes := 0
@@ -36,7 +37,7 @@ func (b *ClientLiveData) BlockMetrics(block *api.VersionedProposal, duration flo
 		log.Errorf("could not get block slot from block proposal: %s", err)
 	}
 
-	blockBody, err := utils.BlockBodyFromProposal(*block)
+	blockBody := utils.BlockBodyFromProposal(*block)
 	if err != nil {
 		log.Errorf("could not get block body from block proposal: %s", err)
 	}
@@ -105,7 +106,7 @@ func (b *ClientLiveData) BlockMetrics(block *api.VersionedProposal, duration flo
 		CorrectTarget:         totalCorrectTarget,
 		CorrectHead:           totalCorrectHead,
 		Score:                 float64(totalScore),
-		Duration:              duration,
+		Duration:              float64(duration.Seconds()),
 		NewVotes:              totalNewVotes,
 		AttNum:                len(blockBody.Attestations),
 		Sync1Bits:             int(blockBody.SyncAggregate.SyncCommitteeBits.Count()),
@@ -114,6 +115,8 @@ func (b *ClientLiveData) BlockMetrics(block *api.VersionedProposal, duration flo
 		ProposerSlashingScore: proposerSlashingScore,
 		AttesterSlashingScore: attesterSlashingScore,
 		SyncScore:             syncCommitteeScore,
+		ExecutionValue:        block.ExecutionValue.Uint64(),
+		ConsensusValue:        block.ConsensusValue.Uint64(),
 	}, nil
 }
 

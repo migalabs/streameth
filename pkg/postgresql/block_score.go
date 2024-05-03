@@ -32,6 +32,8 @@ var (
 			f_proposer_slashing_score FLOAT,
 			f_attester_slashing_score FLOAT,
 			f_sync_score FLOAT,
+			f_execution_value_wei BIGINT,
+			f_consensus_value_wei BIGINT,
 			CONSTRAINT PK_Score PRIMARY KEY (f_slot,f_label));`
 
 	InsertNewScore = `
@@ -51,8 +53,10 @@ var (
 			f_proposer_slashings,
 			f_proposer_slashing_score,
 			f_attester_slashing_score,
-			f_sync_score)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);`
+			f_sync_score,
+			f_execution_value_wei,
+			f_consensus_value_wei)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18);`
 )
 
 // in case the table did not exist
@@ -82,4 +86,37 @@ type BlockMetricsModel struct {
 	ProposerSlashingScore float64
 	AttesterSlashingScore float64
 	SyncScore             float64
+	ExecutionValue        uint64 // wei
+	ConsensusValue        uint64 // wei
+}
+
+func (p *PostgresDBService) PersisBlockScoreMetrics(block BlockMetricsModel) {
+
+	// Store in DB
+	params := make([]interface{}, 0)
+	params = append(params, block.Slot)
+	params = append(params, block.ClientName)
+	params = append(params, block.Label)
+	params = append(params, block.Score)
+	params = append(params, block.Duration)
+	params = append(params, block.CorrectSource)
+	params = append(params, block.CorrectTarget)
+	params = append(params, block.CorrectHead)
+	params = append(params, block.Sync1Bits)
+	params = append(params, block.AttNum)
+	params = append(params, block.NewVotes)
+	params = append(params, block.AttesterSlashings)
+	params = append(params, block.ProposerSlashings)
+	params = append(params, block.ProposerSlashingScore)
+	params = append(params, block.AttesterSlashingScore)
+	params = append(params, block.SyncScore)
+	params = append(params, block.ExecutionValue)
+	params = append(params, block.ConsensusValue)
+
+	writeTask := WriteTask{
+		QueryString: InsertNewScore,
+		Params:      params,
+	}
+
+	p.WriteChan <- writeTask
 }
