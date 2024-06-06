@@ -21,7 +21,7 @@ func (b *ClientLiveData) UpdateAttestations(block spec.VersionedSignedBeaconBloc
 		log.Errorf("could not get block slot from block proposal: %s", err)
 	}
 
-	blockBody, err := utils.BlockBodyFromVersionedBlock(block)
+	blockBody := utils.BlockBodyFromVersionedBlock(block)
 	if err != nil {
 		log.Errorf("could not get block body from block proposal: %s", err)
 	}

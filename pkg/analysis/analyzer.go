@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/migalabs/streameth/pkg/analysis/additional_structs"
 	"github.com/migalabs/streameth/pkg/client_api"
@@ -93,20 +92,6 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 			delete(b.BlockRootHistory, i) // remove old entries from the map
 		}
 	}
-	skipRandaoVerification := false // only needed for Lighthouse, Nimbus and Grandine
-
-	if b.client == utils.LighthouseClient ||
-		b.client == utils.NimbusClient ||
-		b.client == utils.GrandineClient {
-		skipRandaoVerification = true
-	}
-
-	proposalOpts := api.ProposalOpts{
-		Slot:                   slot,
-		RandaoReveal:           utils.CreateInfinityRandaoReveal(),
-		Graffiti:               utils.GraffitiFromString(""),
-		SkipRandaoVerification: skipRandaoVerification,
-	}
 
 	metrics := postgresql.BlockMetricsModel{
 		Slot:  int(slot),
@@ -121,9 +106,7 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 		return
 	}
 
-	snapshot := time.Now()
-	block, err := b.Eth2Provider.Api.Proposal(b.ctx, &proposalOpts) // ask for block proposal
-	blockTime := time.Since(snapshot).Seconds()                     // time to generate block
+	block, blockTime, err := b.Eth2Provider.ProposeNewBlock(slot, b.client)
 
 	if err != nil {
 		log.Errorf("error requesting block from %s: %s", b.label, err)
@@ -131,49 +114,22 @@ func (b *ClientLiveData) ProposeNewBlock(slot phase0.Slot) {
 
 	} else {
 
-		// for now we just have Capella
-		newMetrics, err := b.BlockMetrics(block.Data, blockTime)
+		newMetrics, err := b.BlockMetrics(block, blockTime)
 		if err != nil {
 			log.Errorf("error analyzing block from %s: %s", b.label, err)
 			b.Monitoring.ProposalStatus = 0
 		} else {
 			b.Monitoring.ProposalStatus = 1
 			metrics = newMetrics
-			log.Infof("Block Generation Time: %f", blockTime)
+			log.Infof("Block Generation Time: %fs", blockTime.Seconds())
 			log.Infof("Metrics: %+v", metrics)
 		}
 
 	}
-
-	// Store in DB
-	params := make([]interface{}, 0)
-	params = append(params, metrics.Slot)
-	params = append(params, metrics.ClientName)
-	params = append(params, metrics.Label)
-	params = append(params, metrics.Score)
-	params = append(params, metrics.Duration)
-	params = append(params, metrics.CorrectSource)
-	params = append(params, metrics.CorrectTarget)
-	params = append(params, metrics.CorrectHead)
-	params = append(params, metrics.Sync1Bits)
-	params = append(params, metrics.AttNum)
-	params = append(params, metrics.NewVotes)
-	params = append(params, metrics.AttesterSlashings)
-	params = append(params, metrics.ProposerSlashings)
-	params = append(params, metrics.ProposerSlashingScore)
-	params = append(params, metrics.AttesterSlashingScore)
-	params = append(params, metrics.SyncScore)
-
-	writeTask := postgresql.WriteTask{
-		QueryString: postgresql.InsertNewScore,
-		Params:      params,
-	}
-	b.Monitoring.ProposalStatus = 1
-
-	b.DBClient.WriteChan <- writeTask
+	b.DBClient.PersisBlockScoreMetrics(metrics)
 
 	if block != nil {
-		b.PersistBlock(*block.Data)
+		b.PersistBlock(*block)
 	}
 
 	// We block the update attestations as new head could impact attestations of the proposed block

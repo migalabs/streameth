@@ -2,12 +2,11 @@ package utils
 
 import (
 	"encoding/hex"
-	"fmt"
 
 	"github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
-	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 )
 
@@ -46,33 +45,17 @@ func GraffitiFromString(graffitiStr string) [32]byte {
 
 }
 
-func BlockBodyFromProposal(block api.VersionedProposal) (*capella.BeaconBlockBody, error) {
-	switch block.Version {
+func BlockBodyFromProposal(block api.VersionedProposal) deneb.BeaconBlockBody {
 
-	case spec.DataVersionCapella:
-		return block.Capella.Body, nil
-	default:
-		return nil, fmt.Errorf("could not figure out the BlockBody Fork Version: %s", block.Version.String())
-	}
+	return *block.Deneb.Block.Body
 }
 
-func BlockBodyFromVersionedBlock(block spec.VersionedSignedBeaconBlock) (*capella.BeaconBlockBody, error) {
-	switch block.Version {
-
-	case spec.DataVersionCapella:
-		return block.Capella.Message.Body, nil
-	default:
-		return nil, fmt.Errorf("could not figure out the Verioned Block Body Fork Version: %s", block.Version.String())
-	}
+func BlockBodyFromVersionedBlock(block spec.VersionedSignedBeaconBlock) deneb.BeaconBlockBody {
+	return *block.Deneb.Message.Body
 }
 
 func BlockToSSZ(block api.VersionedProposal) ([]byte, error) {
-	switch block.Version.String() {
 
-	case spec.DataVersionCapella.String():
-		return block.Capella.MarshalSSZ()
-	default:
-		return []byte{}, fmt.Errorf("could not figure out data version")
-	}
+	return block.Deneb.MarshalSSZ()
 
 }

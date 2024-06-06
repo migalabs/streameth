@@ -12,7 +12,7 @@ import (
 )
 
 // Asks for a block proposal to the client and stores score in the database
-func (b *APIClient) ProposeNewBlock(slot phase0.Slot, client string) (api.VersionedProposal, time.Duration, error) {
+func (b *APIClient) ProposeNewBlock(slot phase0.Slot, client string) (*api.VersionedProposal, time.Duration, error) {
 	log.Debugf("proposing new block: %d\n", slot)
 
 	skipRandaoVerification := false // only needed for Lighthouse, Nimbus and Grandine
@@ -35,10 +35,10 @@ func (b *APIClient) ProposeNewBlock(slot phase0.Slot, client string) (api.Versio
 	blockTime := time.Since(snapshot)                  // time to generate block
 
 	if err != nil {
-		return api.VersionedProposal{}, 0 * time.Second, fmt.Errorf("error proposing block at slot %d: %s", slot, err)
+		return &api.VersionedProposal{}, 0 * time.Second, fmt.Errorf("error proposing block at slot %d: %s", slot, err)
 	}
 
-	return *block.Data, blockTime, nil
+	return block.Data, blockTime, nil
 
 }
 
